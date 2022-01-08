@@ -2,6 +2,8 @@ import torch
 from collections import OrderedDict
 from torch_scatter import scatter
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 def pbc_round(input):
      i = input.int()
      bools = abs(input - i) >= 0.5
@@ -10,7 +12,7 @@ def pbc_round(input):
      return vals
 
 class RadNet(torch.nn.Module):
-    def __init__(self, cut_off=1.852 / 2, shape=(9, 9, 9), sigma=0.5, n_outputs=6, atom_types=None):
+    def __init__(self, cut_off=1.852 / 2, shape=(27, 27, 27), sigma=1.0, n_outputs=6, atom_types=None):
         super(RadNet, self).__init__()
         self.cut_off = cut_off
         self.shape = shape
@@ -19,7 +21,10 @@ class RadNet(torch.nn.Module):
         self.x = torch.linspace(-cut_off, cut_off, shape[0])
         self.y = torch.linspace(-cut_off, cut_off, shape[1])
         self.z = torch.linspace(-cut_off, cut_off, shape[2])
-        self.X, self.Y, self.Z = torch.meshgrid(self.x, self.y, self.z)
+        X, Y, Z = torch.meshgrid(self.x, self.y, self.z)
+        self.X = X.to(device)
+        self.Y = Y.to(device)
+        self.Z = Z.to(device)
         self._setup_network()
 
         if atom_types is not None:
@@ -77,7 +82,7 @@ class RadNet(torch.nn.Module):
 
     def _make_english_muffin(self, pos, Z, neighbors, use_neighbors, cell, index):
         n_images = pos.shape[0]
-        ems = torch.zeros((n_images,) + self.shape)
+        ems = torch.zeros((n_images,) + self.shape, device=pos.device)
         for i in range(n_images):
             p = pos[i]
             n = neighbors[i]
@@ -94,7 +99,7 @@ class RadNet(torch.nn.Module):
     def forward(self, pos, Z, neighbors, use_neighbors, cell, index):
 
         ems = self._make_english_muffin(pos, Z, neighbors, use_neighbors, cell, index)
-        import matplotlib.pyplot as plt
+        # import matplotlib.pyplot as plt
         # for em in ems:
         #     plt.imshow(em.sum(-1))
         #     plt.colorbar()
