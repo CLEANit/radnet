@@ -5,6 +5,8 @@ import sys
 import numpy as np
 import argparse 
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print('Runnin on', device)
 filename = sys.argv[1]
 
 batch_size = 32
@@ -18,7 +20,7 @@ training_loader = torch.utils.data.DataLoader(
     batch_size=batch_size, 
     shuffle=True, 
     collate_fn=collate_fn,
-    num_workers=0,
+    num_workers=4,
     pin_memory=False
     )
 validation_loader = torch.utils.data.DataLoader(
@@ -31,7 +33,7 @@ validation_loader = torch.utils.data.DataLoader(
 
 max_epochs = 10000
 starting_epoch = 0
-model = RadNet()
+model = RadNet().to(device)
 loss_fn = torch.nn.MSELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=1e-5)
 
@@ -40,10 +42,15 @@ def train_loop():
     losses = []
     for i, batch in enumerate(training_loader):
         optimizer.zero_grad()
-        preds = model(batch['coordinates'], batch['atomic_numbers'], batch['neighbors'], batch['use_neighbors'], batch['cell'], batch['indices'])
-        trues = batch['target']
+        preds = model(batch['coordinates'].to(device),
+                batch['atomic_numbers'].to(device),
+                batch['neighbors'].to(device),
+                batch['use_neighbors'].to(device), 
+                batch['cell'].to(device), 
+                batch['indices'].to(device))
+        trues = batch['target'].to(device)
         loss = loss_fn(preds, trues)
-        losses.append(loss.detach().numpy())
+        losses.append(loss.detach().cpu().numpy())
         loss.backward()
         optimizer.step()
         print(f'---- batch: {i} | loss: {loss.item()} ----')
@@ -54,10 +61,15 @@ def validation_loop():
     model.eval()
     losses = []
     for i, batch in enumerate(validation_loader):
-        preds = model(batch['coordinates'], batch['atomic_numbers'], batch['neighbors'], batch['use_neighbors'], batch['cell'], batch['indices'])
-        trues = batch['target']
+        preds = model(batch['coordinates'].to(device),
+                batch['atomic_numbers'].to(device),
+                batch['neighbors'].to(device),
+                batch['use_neighbors'].to(device),
+                batch['cell'].to(device),
+                batch['indices'].to(device))
+        trues = batch['target'].to(device)
         loss = loss_fn(preds, trues)
-        losses.append(loss.detach().numpy())
+        losses.append(loss.detach().cpu().numpy())
     return np.mean(losses)
 
 
