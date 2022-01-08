@@ -9,10 +9,7 @@ def _make_float32(samples):
             samples[k] = v.float()
     return samples
 
-def flatten(samples):
-    cut_off = 1.852 / 2
-    max_neighbors = 500
-
+def flatten(samples, cut_off, max_neighbors):
     return_dict = {}
     for k in samples[0]:
         return_dict[k] = []
@@ -56,8 +53,8 @@ def flatten(samples):
         return_dict[k] = torch.tensor(v)
     return return_dict
 
-def collate_fn(samples):
-    samples = flatten(samples)
+def collate_fn(samples, cut_off, max_neighbors):
+    samples = flatten(samples, cut_off, max_neighbors)
     return _make_float32(samples)
 
 
@@ -78,6 +75,7 @@ class HDF5Dataset(torch.utils.data.Dataset):
         f = h5py.File(self.filename, 'r')
         self.data = []
         print('Loading data...')
+        self.ams = []
         for struct_name, struct_vals in f.items():
             for i, pos in enumerate(struct_vals['coordinates'][:]):
                 data_point = {
@@ -88,6 +86,7 @@ class HDF5Dataset(torch.utils.data.Dataset):
                 }
                 # print('Done with:', struct_name, 'coordinate:', i)
                 self.data.append(data_point)
+                self.ams += struct_vals['atomic_numbers'][:].tolist()
 
     def _normalize(self):
         vals = []
@@ -104,6 +103,8 @@ class HDF5Dataset(torch.utils.data.Dataset):
         for i, elem in enumerate(self.data):
             self.data[i]['target'] = (elem['target'] - mins) / (maxs - mins)
 
+    def unique_atomic_numbers(self):
+        return list(set(self.ams))
 
     def __len__(self):
         return len(self.data)

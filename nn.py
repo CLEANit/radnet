@@ -18,6 +18,7 @@ class RadNet(torch.nn.Module):
         self.shape = shape
         self.sigma = sigma
         self.n_outputs = n_outputs
+        self.atom_types = atom_types
         self.x = torch.linspace(-cut_off, cut_off, shape[0])
         self.y = torch.linspace(-cut_off, cut_off, shape[1])
         self.z = torch.linspace(-cut_off, cut_off, shape[2])
@@ -28,7 +29,12 @@ class RadNet(torch.nn.Module):
         self._setup_network()
 
         if atom_types is not None:
-            pass
+            test_images = torch.empty((len(atom_types),) + self.shape)
+            for i, at in enumerate(atom_types):
+                dr = self.X**2 + self.Y**2 + self.Z**2
+                test_images[i] = at * torch.exp(-0.5 * dr / self.sigma**2)
+            self.input_mean = torch.mean(test_images).to(device)
+            self.input_std = torch.std(test_images).to(device)
 
 
     def _setup_network(self):
@@ -99,6 +105,9 @@ class RadNet(torch.nn.Module):
     def forward(self, pos, Z, neighbors, use_neighbors, cell, index):
 
         ems = self._make_english_muffin(pos, Z, neighbors, use_neighbors, cell, index)
+        if self.atom_types:
+            ems -= self.input_mean
+            ems /= self.input_std
         # import matplotlib.pyplot as plt
         # for em in ems:
         #     plt.imshow(em.sum(-1))

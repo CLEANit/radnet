@@ -4,13 +4,65 @@ from data import HDF5Dataset, collate_fn
 import sys
 import numpy as np
 import argparse 
+from functools import partial
+import h5py
+import os
+
+
+parser = argparse.ArgumentParser(description='Arguments for RADNET')
+parser.add_argument('--epochs',
+                       type=int,
+                       default=10000,
+                       help='number of epochs')
+parser.add_argument('--rcut',
+                       type=float,
+                       default=3.5,
+                       help='Cut off radius (in Angstrom)')
+parser.add_argument('--split',
+                       type=float,
+                       default=0.8,
+                       help='training percentage in split')
+parser.add_argument('--batch_size',
+                       type=int,
+                       default=32,
+                       help='batch size during training/validation')
+parser.add_argument('--n_outputs',
+                       type=int,
+                       default=3,
+                       help='number of outputs in neural network')
+parser.add_argument('--filename',
+                       type=str,
+                       default=None,
+                       help='HDF5 file to read from')
+parser.add_argument('--max_neighbors',
+                       type=int,
+                       default=500,
+                       help='max number of neighbors when constructing images')
+parser.add_argument('--image_shape',
+                       type=int,
+                       nargs='+',
+                       default=(15, 15, 15),
+                       help='image sizes used to represent chemical environments')
+parser.add_argument('--sigma',
+                       type=float,
+                       default=1.0,
+                       help='sigma value used for the gaussians')
+parser.add_argument('--learning_rate',
+                       type=float,
+                       default=1e-4,
+                       help='learning rate used in training')
+# Execute parse_args()
+args = parser.parse_args()
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print('Runnin on', device)
-filename = sys.argv[1]
+filename = args.filename
+if filename is None:
+    print('You must provide a file to train with...exiting.')
+    exit()
 
-batch_size = 32
-split_pct = 0.8
+batch_size = args.batch_size
+split_pct = args.split
 dataset = HDF5Dataset(filename)
 n_training = int(len(dataset) * split_pct)
 n_validation = len(dataset) - n_training
@@ -19,23 +71,24 @@ training_loader = torch.utils.data.DataLoader(
     training, 
     batch_size=batch_size, 
     shuffle=True, 
-    collate_fn=collate_fn,
-    num_workers=4,
-    pin_memory=False
+    collate_fn=partial(collate_fn, cut_off=args.rcut / 2, max_neighbors=args.max_neighbors),
+    num_workers=0,
+    pin_memory=True if device == 'cuda' else False
     )
 validation_loader = torch.utils.data.DataLoader(
     validation, 
     batch_size=batch_size, 
-    collate_fn=collate_fn,
+    collate_fn=partial(collate_fn, cut_off=args.rcut / 2, max_neighbors=args.max_neighbors),
     num_workers=0,
-    pin_memory=False
+    pin_memory=True if device == 'cuda' else False
     )
 
-max_epochs = 10000
+max_epochs = args.epochs
 starting_epoch = 0
-model = RadNet().to(device)
+
+model = RadNet(cut_off=args.rcut / 2, shape=tuple(args.image_shape), sigma=args.sigma, n_outputs=args.n_outputs, atom_types=dataset.unique_atomic_numbers()).to(device)
 loss_fn = torch.nn.MSELoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=1e-5)
+optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
 
 def train_loop():
     model.train()
@@ -72,10 +125,36 @@ def validation_loop():
         losses.append(loss.detach().cpu().numpy())
     return np.mean(losses)
 
+def checkpoint(epoch_num, best_loss, name='ckpt.torch'):
+    torch.save({
+            'epoch': epoch_num,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'best_loss': best_loss
+            }, name)
+
+checkpoint_exists = False
+best_loss = np.inf
+
+if os.path.isfile('./ckpt.torch'):
+    print('Found checkpoint file, continuing training')
+    checkpoint_exists = True
+    checkpoint_data = torch.load('./ckpt.torch')
+    model.load_state_dict(checkpoint_data['model_state_dict'])
+    optimizer.load_state_dict(checkpoint_data['optimizer_state_dict'])
+    starting_epoch = checkpoint_data['epoch']
+    best_loss = checkpoint_data['best_loss']
+else:
+    print('checkpoint not found, training from scratch')
 
 for epoch_num in range(starting_epoch, max_epochs):
     avg_train_loss = train_loop()
     avg_validation_loss = validation_loop()
+    if avg_validation_loss < best_loss:
+        print('--- Better loss found, checkpointing to best.torch')
+        best_loss = avg_validation_loss
+        checkpoint(epoch_num, best_loss, name='best.torch')
+    checkpoint(epoch_num, best_loss)
     print(f'-- epoch: {epoch_num} | train_loss: {avg_train_loss} | validation_loss: {avg_validation_loss}')
 
 
