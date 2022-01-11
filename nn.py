@@ -12,7 +12,7 @@ def pbc_round(input):
      return vals
 
 class RadNet(torch.nn.Module):
-    def __init__(self, cut_off=1.852 / 2, shape=(27, 27, 27), sigma=1.0, n_outputs=6, atom_types=None):
+    def __init__(self, cut_off=1.852 / 2, shape=(27, 27, 27), sigma=0.2, n_outputs=6, atom_types=None, cutoff_filter='erfc'):
         super(RadNet, self).__init__()
         self.cut_off = cut_off
         self.shape = shape
@@ -35,6 +35,14 @@ class RadNet(torch.nn.Module):
                 test_images[i] = at * torch.exp(-0.5 * dr / self.sigma**2)
             self.input_mean = torch.mean(test_images).to(device)
             self.input_std = torch.std(test_images).to(device)
+            self.input_abs_max = torch.max(torch.abs(test_images)).to(device)
+
+        assert cutoff_filter.lower() in ['erfc', 'hard'], f'You supplied a cutoff filter that is not implemented. Use "erfc" or "hard"'
+
+        if cutoff_filter.lower() == 'erfc':
+            self.filter = torch.erfc((self.X**2 + self.Y**2 + self.Z**2)**0.5 - self.cut_off) / 2. 
+        elif cutoff_filter.lower() == 'hard':
+            self.filter = torch.where((self.X**2 + self.Y**2 + self.Z**2)**0.5 < self.cut_off, 1.0, 0.0)
 
 
     def _setup_network(self):
@@ -101,6 +109,8 @@ class RadNet(torch.nn.Module):
             ems[i] = (Z[i] * torch.exp(-0.5 * (dx2 + dy2 + dz2) / self.sigma**2)).sum(0).reshape(self.shape)
         return ems
         
+    def _apply_filter(self, ims):
+        return self.filter * ims
 
     def forward(self, pos, Z, neighbors, use_neighbors, cell, index):
 
@@ -108,12 +118,14 @@ class RadNet(torch.nn.Module):
         if self.atom_types:
             ems -= self.input_mean
             ems /= self.input_std
+            ems /= self.input_abs_max
+        filtered_ems = self._apply_filter(ems)
         # import matplotlib.pyplot as plt
-        # for em in ems:
+        # for em in filtered_ems:
         #     plt.imshow(em.sum(-1))
         #     plt.colorbar()
         #     plt.show()
         # exit()
-        inter_outs = self.model(ems.unsqueeze(1))
+        inter_outs = self.model(filtered_ems.unsqueeze(1))
         outs = scatter(inter_outs, index, dim=0, reduce='add')
         return outs
