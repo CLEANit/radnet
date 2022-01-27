@@ -99,10 +99,24 @@ class HDF5Dataset(torch.utils.data.Dataset):
         print('INFO from normalization:')
         print('mins:', mins)
         print('maxs:', maxs)
+        print('writing to file "normalization_info.dat"')
+        f = open('normalization_info.dat', 'w')
+        f.write('Mins:\n')
+        for minelem in mins:
+            f.write(str(minelem) + '\t')
+        f.write('\n')
+        f.write('Maxs:\n')
+        for maxelem in maxs:
+            f.write(str(maxelem) + '\t')
+        f.write('\n')
+        f.close()
 
         for i, elem in enumerate(self.data):
             self.data[i]['target'] = (elem['target'] - mins) / (maxs - mins)
 
+        self.mins = mins
+        self.maxs = maxs
+        
     def unique_atomic_numbers(self):
         return list(set(self.ams))
 

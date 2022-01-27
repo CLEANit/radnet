@@ -73,7 +73,7 @@ training, validation = torch.utils.data.random_split(dataset, (n_training, n_val
 training_loader = torch.utils.data.DataLoader(
     training, 
     batch_size=batch_size, 
-    shuffle=True, 
+    shuffle=False, 
     collate_fn=partial(collate_fn, cut_off=args.rcut / 2, max_neighbors=args.max_neighbors),
     num_workers=0,
     pin_memory=True if device == 'cuda' else False
@@ -114,9 +114,11 @@ def train_loop():
     return np.mean(losses)
 
 
-def validation_loop():
+def validation_loop(epoch_num):
     model.eval()
     losses = []
+    all_trues = []
+    all_preds = []
     for i, batch in enumerate(validation_loader):
         preds = model(batch['coordinates'].to(device),
                 batch['atomic_numbers'].to(device),
@@ -127,6 +129,17 @@ def validation_loop():
         trues = batch['target'].to(device)
         loss = loss_fn(preds, trues)
         losses.append(loss.detach().cpu().numpy())
+        all_trues.append(trues)
+        all_preds.append(preds)
+    all_trues = torch.cat(all_trues).detach().cpu().numpy()
+    all_preds = torch.cat(all_preds).detach().cpu().numpy()
+    factor = dataset.maxs - dataset.mins
+    f = open(f'tvp_epoch_{epoch_num}.dat', 'w')
+    for ts, ps in zip(all_trues, all_preds):
+        for i, (t, p) in enumerate(zip(ts, ps)):
+            f.write(f'{t * factor[i] + dataset.mins[i]} {p * factor[i] + dataset.mins[i]} ')
+        f.write('\n')
+
     return np.mean(losses)
 
 def checkpoint(epoch_num, best_loss, name='ckpt.torch'):
@@ -155,7 +168,7 @@ else:
 
 for epoch_num in range(starting_epoch, max_epochs):
     avg_train_loss = train_loop()
-    avg_validation_loss = validation_loop()
+    avg_validation_loss = validation_loop(epoch_num)
     # scheduler.step(avg_validation_loss)
     if avg_validation_loss < best_loss:
         print('--- Better loss found, checkpointing to best.torch')

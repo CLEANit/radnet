@@ -106,7 +106,7 @@ class RadNet(torch.nn.Module):
             dx2 = (dr[:, 0].unsqueeze(-1) - torch.stack([self.X.flatten()]*n_these_Rs))**2
             dy2 = (dr[:, 1].unsqueeze(-1) - torch.stack([self.Y.flatten()]*n_these_Rs))**2
             dz2 = (dr[:, 2].unsqueeze(-1) - torch.stack([self.Z.flatten()]*n_these_Rs))**2
-            ems[i] = (Z[i] * torch.exp(-0.5 * (dx2 + dy2 + dz2) / self.sigma**2)).sum(0).reshape(self.shape)
+            ems[i] = (Z[i] * torch.exp(-0.5 * (dx2 + dy2 + dz2) / (self.sigma**2))).sum(0).reshape(self.shape)
         return ems
         
     def _apply_filter(self, ims):
@@ -115,15 +115,21 @@ class RadNet(torch.nn.Module):
     def forward(self, pos, Z, neighbors, use_neighbors, cell, index):
 
         ems = self._make_english_muffin(pos, Z, neighbors, use_neighbors, cell, index)
-        if self.atom_types:
-            ems -= self.input_mean
-            ems /= self.input_std
-            ems /= self.input_abs_max
+        # if self.atom_types:
+        #     ems -= self.input_mean
+        #     ems /= self.input_std
+        #     ems /= self.input_abs_max
         filtered_ems = self._apply_filter(ems)
-        # import matplotlib.pyplot as plt
-        # for em in filtered_ems:
-        #     plt.imshow(em.sum(-1))
-        #     plt.colorbar()
+        # import matplotlib.pyplot as plt, h5py
+        # f = h5py.File('images_die_3.5.h5')
+        # for i, em in enumerate(filtered_ems):
+        #     fig, ax = plt.subplots(1, 3)
+        #     im = ax[0].imshow(f['sliced_ems'][index[i],i % 2].sum(-1))
+        #     plt.colorbar(im, ax=ax[0])
+        #     im = ax[1].imshow(em.sum(-1).detach().numpy())
+        #     plt.colorbar(im, ax=ax[1])
+        #     im =  ax[2].imshow(f['sliced_ems'][index[i], i % 2].sum(-1) - em.sum(-1).detach().numpy())
+        #     plt.colorbar(im, ax=ax[2])
         #     plt.show()
         # exit()
         inter_outs = self.model(filtered_ems.unsqueeze(1))
