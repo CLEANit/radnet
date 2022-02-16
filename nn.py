@@ -115,23 +115,23 @@ class RadNet(torch.nn.Module):
     def forward(self, pos, Z, neighbors, use_neighbors, cell, index):
 
         ems = self._make_english_muffin(pos, Z, neighbors, use_neighbors, cell, index)
-        # if self.atom_types:
-        #     ems -= self.input_mean
-        #     ems /= self.input_std
-        #     ems /= self.input_abs_max
+        if self.atom_types:
+            ems -= self.input_mean
+            ems /= self.input_std
+            ems /= self.input_abs_max
         filtered_ems = self._apply_filter(ems)
-        # import matplotlib.pyplot as plt, h5py
+        import matplotlib.pyplot as plt, h5py
         # f = h5py.File('images_die_3.5.h5')
-        # for i, em in enumerate(filtered_ems):
-        #     fig, ax = plt.subplots(1, 3)
-        #     im = ax[0].imshow(f['sliced_ems'][index[i],i % 2].sum(-1))
-        #     plt.colorbar(im, ax=ax[0])
-        #     im = ax[1].imshow(em.sum(-1).detach().numpy())
-        #     plt.colorbar(im, ax=ax[1])
-        #     im =  ax[2].imshow(f['sliced_ems'][index[i], i % 2].sum(-1) - em.sum(-1).detach().numpy())
-        #     plt.colorbar(im, ax=ax[2])
-        #     plt.show()
-        # exit()
+        for i, em in enumerate(filtered_ems):
+            fig, ax = plt.subplots(1, 3)
+            # im = ax[0].imshow(f['sliced_ems'][index[i],i % 2].sum(-1))
+            # plt.colorbar(im, ax=ax[0])
+            im = ax[1].imshow(em.sum(-1).detach().numpy())
+            plt.colorbar(im, ax=ax[1])
+            # im =  ax[2].imshow(f['sliced_ems'][index[i], i % 2].sum(-1) - em.sum(-1).detach().numpy())
+            plt.colorbar(im, ax=ax[2])
+            plt.show()
+        exit()
         inter_outs = self.model(filtered_ems.unsqueeze(1))
         outs = scatter(inter_outs, index, dim=0, reduce='add')
         return outs
