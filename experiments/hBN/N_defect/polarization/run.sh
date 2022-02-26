@@ -1,10 +1,11 @@
-python trainer.py \
-    --filename BN/BN_cubic_data.h5 \
+
+python ../../../../trainer.py \
+    --filename hBN_N_defect.h5 \
     --epochs 10000 \
     --rcut 3.5 \
     --split 0.8 \
     --batch_size 8 \
-    --n_outputs 6 \
+    --n_outputs 3 \
     --max_neighbors 500 \
     --image_shape 9 9 9  \
     --sigma 0.5 \
