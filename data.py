@@ -59,10 +59,11 @@ def collate_fn(samples, cut_off, max_neighbors):
 
 
 class HDF5Dataset(torch.utils.data.Dataset):
-    def __init__(self, filename, normalize=True, cut_off=3.0, max_neighbors=50):
+    def __init__(self, filename, normalize=True, cut_off=3.0, max_neighbors=50, sample_frac=1):
         self.filename = filename
         self.cut_off = cut_off
         self.max_neighbors = max_neighbors
+        self.sample_frac = sample_frac
         self._load_data()
 
         if normalize:
@@ -77,6 +78,7 @@ class HDF5Dataset(torch.utils.data.Dataset):
         print('Loading data...')
         self.ams = []
         for struct_name, struct_vals in f.items():
+            max_samples = int(self.sample_frac * struct_vals['coordinates'].shape[0])
             for i, pos in enumerate(struct_vals['coordinates'][:]):
                 data_point = {
                     'atomic_numbers': struct_vals['atomic_numbers'][:],
@@ -87,6 +89,8 @@ class HDF5Dataset(torch.utils.data.Dataset):
                 # print('Done with:', struct_name, 'coordinate:', i)
                 self.data.append(data_point)
                 self.ams += struct_vals['atomic_numbers'][:].tolist()
+                if i >= max_samples:
+                    break
 
     def _normalize(self):
         vals = []

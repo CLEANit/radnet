@@ -54,11 +54,19 @@ parser.add_argument('--filter',
                        type=str,
                        default='erfc',
                        help='filter used to blur images')
+parser.add_argument("--sample_frac",
+                       type=float,
+                       default=1,
+                       help="Proportion of kept data, for fast testing")
+parser.add_argument("--output_files",
+                       type=int,
+                       default=1,
+                       help="If 1, write the output files every epoch")
 # Execute parse_args()
 args = parser.parse_args()
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print('Runnin on', device)
+print('Running on', device)
 filename = args.filename
 if filename is None:
     print('You must provide a file to train with...exiting.')
@@ -66,7 +74,7 @@ if filename is None:
 
 batch_size = args.batch_size
 split_pct = args.split
-dataset = HDF5Dataset(filename)
+dataset = HDF5Dataset(filename, sample_frac=args.sample_frac)
 n_training = int(len(dataset) * split_pct)
 n_validation = len(dataset) - n_training
 training, validation = torch.utils.data.random_split(dataset, (n_training, n_validation))
@@ -129,16 +137,17 @@ def validation_loop(epoch_num):
         trues = batch['target'].to(device)
         loss = loss_fn(preds, trues)
         losses.append(loss.detach().cpu().numpy())
-        all_trues.append(trues)
-        all_preds.append(preds)
-    all_trues = torch.cat(all_trues).detach().cpu().numpy()
-    all_preds = torch.cat(all_preds).detach().cpu().numpy()
+        all_trues.append(trues.detach().cpu())
+        all_preds.append(preds.detach().cpu())
+    all_trues = torch.cat(all_trues).numpy()
+    all_preds = torch.cat(all_preds).numpy()
     factor = dataset.maxs - dataset.mins
-    f = open(f'tvp_epoch_{epoch_num}.dat', 'w')
-    for ts, ps in zip(all_trues, all_preds):
-        for i, (t, p) in enumerate(zip(ts, ps)):
-            f.write(f'{t * factor[i] + dataset.mins[i]} {p * factor[i] + dataset.mins[i]} ')
-        f.write('\n')
+    if args.output_files:
+        f = open(f'tvp_epoch_{epoch_num}.dat', 'w')
+        for ts, ps in zip(all_trues, all_preds):
+            for i, (t, p) in enumerate(zip(ts, ps)):
+                f.write(f'{t * factor[i] + dataset.mins[i]} {p * factor[i] + dataset.mins[i]} ')
+            f.write('\n')
 
     return np.mean(losses)
 
@@ -176,8 +185,3 @@ for epoch_num in range(starting_epoch, max_epochs):
         checkpoint(epoch_num, best_loss, name='best.torch')
     checkpoint(epoch_num, best_loss)
     print(f'-- epoch: {epoch_num} | train_loss: {avg_train_loss} | validation_loss: {avg_validation_loss}')
-
-
-
-
-
