@@ -22,7 +22,7 @@ class RadNet(torch.nn.Module):
         self.x = torch.linspace(-cut_off, cut_off, shape[0])
         self.y = torch.linspace(-cut_off, cut_off, shape[1])
         self.z = torch.linspace(-cut_off, cut_off, shape[2])
-        X, Y, Z = torch.meshgrid(self.x, self.y, self.z)
+        X, Y, Z = torch.meshgrid(self.x, self.y, self.z, indexing="ij")
         self.X = X.to(device)
         self.Y = Y.to(device)
         self.Z = Z.to(device)
