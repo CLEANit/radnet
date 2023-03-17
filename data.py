@@ -2,6 +2,7 @@ import torch
 import h5py
 import numpy as np
 from ase import Atoms, neighborlist
+import ase.neighborlist
 
 
 def _make_float32(samples):
@@ -27,9 +28,11 @@ def flatten(samples, cut_off, max_neighbors):
         # construct neighbor list on the fly
         nl = neighborlist.NeighborList(
             [cut_off] * len(atomic_numbers),
+            skin=0,
             bothways=True,
             self_interaction=True,
             sorted=False,
+            primitive=ase.neighborlist.NewPrimitiveNeighborList
         )
         atoms = Atoms(
             numbers=atomic_numbers, cell=cell, positions=coordinates, pbc=True
