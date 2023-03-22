@@ -32,7 +32,7 @@ def flatten(samples, cut_off, max_neighbors):
             bothways=True,
             self_interaction=True,
             sorted=False,
-            primitive=ase.neighborlist.NewPrimitiveNeighborList
+            primitive=ase.neighborlist.NewPrimitiveNeighborList,
         )
         atoms = Atoms(
             numbers=atomic_numbers, cell=cell, positions=coordinates, pbc=True
@@ -75,16 +75,22 @@ def collate_fn(samples, cut_off, max_neighbors):
 
 class HDF5Dataset(torch.utils.data.Dataset):
     def __init__(
-        self, filename, normalize=True, cut_off=3.0, max_neighbors=50, sample_frac=1
+        self,
+        filename,
+        normalize=True,
+        normalize_mode="data",
+        cut_off=3.0,
+        max_neighbors=50,
+        sample_frac=1,
     ):
         self.filename = filename
         self.cut_off = cut_off
         self.max_neighbors = max_neighbors
         self.sample_frac = sample_frac
         self._load_data()
-
         if normalize:
-            self._normalize()
+            assert normalize_mode in ["data", "file"]
+            self._normalize(normalize_mode)
 
     def _load_data(self):
         """
@@ -109,28 +115,37 @@ class HDF5Dataset(torch.utils.data.Dataset):
                 if i >= max_samples:
                     break
 
-    def _normalize(self):
-        vals = []
-        for elem in self.data:
-            vals.append(elem["target"])
+    def _normalize(self, normalize_mode):
+        if normalize_mode == "data":
+            vals = []
+            for elem in self.data:
+                vals.append(elem["target"])
 
-        vals = np.array(vals)
-        mins = vals.min(0)
-        maxs = vals.max(0)
-        print("INFO from normalization:")
-        print("mins:", mins)
-        print("maxs:", maxs)
-        print('writing to file "normalization_info.dat"')
-        f = open("normalization_info.dat", "w")
-        f.write("Mins:\n")
-        for minelem in mins:
-            f.write(str(minelem) + "\t")
-        f.write("\n")
-        f.write("Maxs:\n")
-        for maxelem in maxs:
-            f.write(str(maxelem) + "\t")
-        f.write("\n")
-        f.close()
+            vals = np.array(vals)
+            mins = vals.min(0)
+            maxs = vals.max(0)
+            print("INFO from normalization:")
+            print("mins:", mins)
+            print("maxs:", maxs)
+            print('writing to file "normalization_info.dat"')
+            f = open("normalization_info.dat", "w")
+            f.write("Mins:\n")
+            for minelem in mins:
+                f.write(str(minelem) + "\t")
+            f.write("\n")
+            f.write("Maxs:\n")
+            for maxelem in maxs:
+                f.write(str(maxelem) + "\t")
+            f.write("\n")
+            f.close()
+        elif normalize_mode == "file":
+            f = open("normalization_info.dat", "r")
+            txt = f.read().split("\n")
+            f.close()
+            mins = np.array(txt[1].split("\t")[:-1], dtype=float)
+            maxs = np.array(txt[3].split("\t")[:-1], dtype=float)
+            print("mins:", mins)
+            print("maxs:", maxs)
 
         for i, elem in enumerate(self.data):
             self.data[i]["target"] = (elem["target"] - mins) / (maxs - mins)
