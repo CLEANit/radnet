@@ -108,6 +108,7 @@ model = RadNet(
     n_outputs=args.n_outputs,
     atom_types=dataset.unique_atomic_numbers(),
     cutoff_filter=args.filter,
+    device=device,
 ).to(device)
 
 model.load_state_dict(
@@ -127,7 +128,6 @@ with torch.no_grad():
             batch["atomic_numbers"].to(device),
             batch["neighbors"].to(device),
             batch["use_neighbors"].to(device),
-            batch["cell"].to(device),
             batch["indices"].to(device),
         )
         preds = preds * (maxs - mins) + mins

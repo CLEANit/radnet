@@ -2,8 +2,6 @@ import torch
 from collections import OrderedDict
 from torch_scatter import scatter
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 
 def pbc_round(input):
     i = input.int()
@@ -11,6 +9,23 @@ def pbc_round(input):
     vals = torch.where(torch.logical_and(bools, input > 0), i + 1, i)
     vals = torch.where(torch.logical_and(bools, input < 0), i - 1, i)
     return vals
+
+# Not sure why this is needed, but without it the Linear layers at the
+# end of the model returns different values for equivalent atoms.
+# This seems to solve it for now.
+class DeterministicLinear(torch.nn.Linear):
+    def __init__(self, in_features, out_features, bias=True, device=None, dtype=None):
+        super().__init__(
+            in_features=in_features,
+            out_features=out_features,
+            bias=bias,
+            device=device,
+            dtype=dtype,
+        )
+
+    def forward(self, x):
+        y = torch.matmul(x, self.weight.T.unsqueeze(0))[0] + self.bias
+        return y
 
 
 class RadNet(torch.nn.Module):
@@ -22,6 +37,7 @@ class RadNet(torch.nn.Module):
         n_outputs=6,
         atom_types=None,
         cutoff_filter="erfc",
+        device="cpu",
     ):
         super(RadNet, self).__init__()
         self.cut_off = cut_off
@@ -97,7 +113,7 @@ class RadNet(torch.nn.Module):
             layers["conv_red_" + str(n) + "_elu"] = torch.nn.ELU()
             in_chan = 32
         layers["flatten"] = torch.nn.Flatten()
-        layers["fc1"] = torch.nn.Linear(
+        layers["fc1"] = DeterministicLinear(
             in_chan
             * (self.shape[0] // 2 + 1)
             * (self.shape[1] // 2 + 1)
@@ -105,7 +121,7 @@ class RadNet(torch.nn.Module):
             1024,
         )
         layers["fc1_ELU"] = torch.nn.ELU()
-        layers["fc2"] = torch.nn.Linear(1024, self.n_outputs)
+        layers["fc2"] = DeterministicLinear(1024, self.n_outputs)
         self.model = torch.nn.Sequential(layers)
 
     def _get_distances(self, pos, neighbors, cell):
@@ -132,7 +148,7 @@ class RadNet(torch.nn.Module):
 
         return Rs
 
-    def _make_english_muffin(self, pos, Z, neighbors, use_neighbors, cell, index):
+    def _make_english_muffin(self, pos, Z, neighbors, use_neighbors):
         n_images = pos.shape[0]
         ems = torch.zeros((n_images,) + self.shape, device=pos.device)
         for i in range(n_images):
@@ -160,26 +176,15 @@ class RadNet(torch.nn.Module):
     def _apply_filter(self, ims):
         return self.filter * ims
 
-    def forward(self, pos, Z, neighbors, use_neighbors, cell, index):
-
-        ems = self._make_english_muffin(pos, Z, neighbors, use_neighbors, cell, index)
+    def forward(self, pos, Z, neighbors, use_neighbors, index):
+        ems = self._make_english_muffin(pos, Z, neighbors, use_neighbors)
         if self.atom_types:
             ems -= self.input_mean
             ems /= self.input_std
             ems /= self.input_abs_max
         filtered_ems = self._apply_filter(ems)
-        # import matplotlib.pyplot as plt, h5py
-        # # f = h5py.File('images_die_3.5.h5')
-        # for i, em in enumerate(filtered_ems):
-        #     fig, ax = plt.subplots(1, 3)
-        #     # im = ax[0].imshow(f['sliced_ems'][index[i],i % 2].sum(-1))
-        #     # plt.colorbar(im, ax=ax[0])
-        #     im = ax[1].imshow(em.sum(-1).detach().numpy())
-        #     plt.colorbar(im, ax=ax[1])
-        #     # im =  ax[2].imshow(f['sliced_ems'][index[i], i % 2].sum(-1) - em.sum(-1).detach().numpy())
-        #     plt.colorbar(im, ax=ax[2])
-        #     plt.show()
-        # exit()
+
         inter_outs = self.model(filtered_ems.unsqueeze(1))
+        unique_indices = torch.unique(index)
         outs = scatter(inter_outs, index, dim=0, reduce="add")
         return outs

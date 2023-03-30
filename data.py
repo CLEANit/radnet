@@ -17,7 +17,6 @@ def flatten(samples, cut_off, max_neighbors):
     for k in samples[0]:
         return_dict[k] = []
     return_dict["indices"] = []
-    return_dict["cell"] = []
     return_dict["neighbors"] = []
     return_dict["use_neighbors"] = []
     for i, sample in enumerate(samples):
@@ -38,6 +37,7 @@ def flatten(samples, cut_off, max_neighbors):
             numbers=atomic_numbers, cell=cell, positions=coordinates, pbc=True
         )
         nl.update(atoms)
+        neighbors_list, use_neighbors_list = [], []
         for j, atom in enumerate(atoms):
             indices, offsets = nl.get_neighbors(j)
             relative_pos = np.zeros((max_neighbors, 3))
@@ -53,7 +53,6 @@ def flatten(samples, cut_off, max_neighbors):
         return_dict["atomic_numbers"] += atomic_numbers
         return_dict["coordinates"] += coordinates
         return_dict["indices"] += [i] * len(atomic_numbers)
-        return_dict["cell"] += [cell] * len(atomic_numbers)
         for k, v in sample.items():
             if (
                 k != "atomic_numbers"
@@ -109,7 +108,6 @@ class HDF5Dataset(torch.utils.data.Dataset):
                     "coordinates": pos,
                     "target": struct_vals["target"][i],
                 }
-                # print('Done with:', struct_name, 'coordinate:', i)
                 self.data.append(data_point)
                 self.ams += struct_vals["atomic_numbers"][:].tolist()
                 if i >= max_samples:

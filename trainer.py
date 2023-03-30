@@ -125,7 +125,9 @@ model = RadNet(
     n_outputs=args.n_outputs,
     atom_types=dataset.unique_atomic_numbers(),
     cutoff_filter=args.filter,
+    device=device,
 ).to(device)
+
 loss_fn = torch.nn.MSELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
@@ -143,7 +145,6 @@ def train_loop():
             batch["atomic_numbers"].to(device),
             batch["neighbors"].to(device),
             batch["use_neighbors"].to(device),
-            batch["cell"].to(device),
             batch["indices"].to(device),
         )
         trues = batch["target"].to(device)
@@ -166,7 +167,6 @@ def validation_loop(epoch_num):
             batch["atomic_numbers"].to(device),
             batch["neighbors"].to(device),
             batch["use_neighbors"].to(device),
-            batch["cell"].to(device),
             batch["indices"].to(device),
         )
         trues = batch["target"].to(device)
