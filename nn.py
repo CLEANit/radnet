@@ -11,7 +11,7 @@ def pbc_round(input):
     return vals
 
 # Not sure why this is needed, but without it the Linear layers at the
-# end of the model returns different values for equivalent atoms.
+# end of the model returns different values for equivalent atoms when batch_size > 1
 # This seems to solve it for now.
 class DeterministicLinear(torch.nn.Linear):
     def __init__(self, in_features, out_features, bias=True, device=None, dtype=None):
