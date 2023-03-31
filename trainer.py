@@ -8,6 +8,7 @@ import glob
 from functools import partial
 import h5py
 import os
+import pickle
 
 parser = argparse.ArgumentParser(description="Arguments for RADNET")
 parser.add_argument("--epochs", type=int, default=10000, help="number of epochs")
@@ -58,6 +59,12 @@ parser.add_argument(
     default=1,
     help="If 1, write the output files every epoch",
 )
+parser.add_argument(
+    "--idx_savepath",
+    type=str,
+    default=None,
+    help="Path to save the training/validation indices.",
+)
 # Execute parse_args()
 args = parser.parse_args()
 
@@ -73,11 +80,31 @@ split_pct = args.split
 dataset = HDF5Dataset(filename, sample_frac=args.sample_frac)
 n_training = int(len(dataset) * split_pct)
 n_validation = len(dataset) - n_training
-training, validation = torch.utils.data.random_split(
-    dataset, (n_training, n_validation)
-)
+shuffled_idx = torch.randperm(len(dataset)).tolist()
+training = torch.utils.data.Subset(dataset, shuffled_idx[:n_training])
+validation = torch.utils.data.Subset(dataset, shuffled_idx[-n_validation:])
+
+if args.idx_savepath:
+    with open(args.idx_savepath, "wb") as f:
+        save = {
+            "train_idx": shuffled_idx[:n_training],
+            "val_idx": shuffled_idx[-n_validation:],
+        }
+        pickle.dump(save, f)
+
 training_loader = torch.utils.data.DataLoader(
     training,
+    batch_size=batch_size,
+    shuffle=True,
+    collate_fn=partial(
+        collate_fn, cut_off=args.rcut / 2, max_neighbors=args.max_neighbors
+    ),
+    num_workers=0,
+    pin_memory=True if device.type == "cuda" else False,
+    drop_last=True,
+)
+validation_loader = torch.utils.data.DataLoader(
+    validation,
     batch_size=batch_size,
     shuffle=False,
     collate_fn=partial(
@@ -85,15 +112,7 @@ training_loader = torch.utils.data.DataLoader(
     ),
     num_workers=0,
     pin_memory=True if device.type == "cuda" else False,
-)
-validation_loader = torch.utils.data.DataLoader(
-    validation,
-    batch_size=batch_size,
-    collate_fn=partial(
-        collate_fn, cut_off=args.rcut / 2, max_neighbors=args.max_neighbors
-    ),
-    num_workers=0,
-    pin_memory=True if device.type == "cuda" else False,
+    drop_last=False,
 )
 
 max_epochs = args.epochs
@@ -106,7 +125,9 @@ model = RadNet(
     n_outputs=args.n_outputs,
     atom_types=dataset.unique_atomic_numbers(),
     cutoff_filter=args.filter,
+    device=device,
 ).to(device)
+
 loss_fn = torch.nn.MSELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
@@ -124,7 +145,6 @@ def train_loop():
             batch["atomic_numbers"].to(device),
             batch["neighbors"].to(device),
             batch["use_neighbors"].to(device),
-            batch["cell"].to(device),
             batch["indices"].to(device),
         )
         trues = batch["target"].to(device)
@@ -147,7 +167,6 @@ def validation_loop(epoch_num):
             batch["atomic_numbers"].to(device),
             batch["neighbors"].to(device),
             batch["use_neighbors"].to(device),
-            batch["cell"].to(device),
             batch["indices"].to(device),
         )
         trues = batch["target"].to(device)
@@ -228,7 +247,9 @@ for epoch_num in range(starting_epoch, max_epochs):
     print(
         f"-- epoch: {epoch_num} | train_loss: {avg_train_loss} | validation_loss: {avg_validation_loss} | learning rate: {optimizer.param_groups[0]['lr']}"
     )
-    print(f"          learning rate: {optimizer.param_groups[0]['lr']} | stopping_counter: {stopping_counter}")
+    print(
+        f"          learning rate: {optimizer.param_groups[0]['lr']} | stopping_counter: {stopping_counter}"
+    )
     if stopping_counter == stopping_patience:
         print("Training complete.")
         break
