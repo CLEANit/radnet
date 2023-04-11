@@ -10,6 +10,7 @@ def pbc_round(input):
     vals = torch.where(torch.logical_and(bools, input < 0), i - 1, i)
     return vals
 
+
 # Not sure why this is needed, but without it the Linear layers at the
 # end of the model returns different values for equivalent atoms when batch_size > 1
 # This seems to solve it for now.
@@ -115,9 +116,9 @@ class RadNet(torch.nn.Module):
         layers["flatten"] = torch.nn.Flatten()
         layers["fc1"] = DeterministicLinear(
             in_chan
-            * (self.shape[0] // 2 + 1)
-            * (self.shape[1] // 2 + 1)
-            * (self.shape[2] // 2 + 1),
+            * (self.shape[0] // 2 + 1 if self.shape[0] % 2 == 1 else self.shape[0] // 2)
+            * (self.shape[1] // 2 + 1 if self.shape[1] % 2 == 1 else self.shape[1] // 2)
+            * (self.shape[2] // 2 + 1 if self.shape[2] % 2 == 1 else self.shape[2] // 2),
             1024,
         )
         layers["fc1_ELU"] = torch.nn.ELU()
