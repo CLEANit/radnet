@@ -118,7 +118,9 @@ class RadNet(torch.nn.Module):
             in_chan
             * (self.shape[0] // 2 + 1 if self.shape[0] % 2 == 1 else self.shape[0] // 2)
             * (self.shape[1] // 2 + 1 if self.shape[1] % 2 == 1 else self.shape[1] // 2)
-            * (self.shape[2] // 2 + 1 if self.shape[2] % 2 == 1 else self.shape[2] // 2),
+            * (
+                self.shape[2] // 2 + 1 if self.shape[2] % 2 == 1 else self.shape[2] // 2
+            ),
             1024,
         )
         layers["fc1_ELU"] = torch.nn.ELU()
