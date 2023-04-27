@@ -10,6 +10,7 @@ def pbc_round(input):
     vals = torch.where(torch.logical_and(bools, input < 0), i - 1, i)
     return vals
 
+
 # Not sure why this is needed, but without it the Linear layers at the
 # end of the model returns different values for equivalent atoms when batch_size > 1
 # This seems to solve it for now.
