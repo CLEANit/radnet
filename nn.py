@@ -115,9 +115,11 @@ class RadNet(torch.nn.Module):
         layers["flatten"] = torch.nn.Flatten()
         layers["fc1"] = DeterministicLinear(
             in_chan
-            * (self.shape[0] // 2 + 1)
-            * (self.shape[1] // 2 + 1)
-            * (self.shape[2] // 2 + 1),
+            * (self.shape[0] // 2 + 1 if self.shape[0] % 2 == 1 else self.shape[0] // 2)
+            * (self.shape[1] // 2 + 1 if self.shape[1] % 2 == 1 else self.shape[1] // 2)
+            * (
+                self.shape[2] // 2 + 1 if self.shape[2] % 2 == 1 else self.shape[2] // 2
+            ),
             1024,
         )
         layers["fc1_ELU"] = torch.nn.ELU()
