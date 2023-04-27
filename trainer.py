@@ -10,6 +10,8 @@ import h5py
 import os
 import pickle
 
+
+# Setup parser
 parser = argparse.ArgumentParser(description="Arguments for RADNET")
 parser.add_argument("--epochs", type=int, default=10000, help="number of epochs")
 parser.add_argument(
@@ -68,6 +70,7 @@ parser.add_argument(
 # Execute parse_args()
 args = parser.parse_args()
 
+# Initial checks
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("Running on", device)
 filename = args.filename
@@ -75,49 +78,18 @@ if filename is None:
     print("You must provide a file to train with...exiting.")
     exit()
 
+
+# Set some values
 batch_size = args.batch_size
 split_pct = args.split
 dataset = HDF5Dataset(filename, sample_frac=args.sample_frac)
 n_training = int(len(dataset) * split_pct)
 n_validation = len(dataset) - n_training
-shuffled_idx = torch.randperm(len(dataset)).tolist()
-training = torch.utils.data.Subset(dataset, shuffled_idx[:n_training])
-validation = torch.utils.data.Subset(dataset, shuffled_idx[-n_validation:])
-
-if args.idx_savepath:
-    with open(args.idx_savepath, "wb") as f:
-        save = {
-            "train_idx": shuffled_idx[:n_training],
-            "val_idx": shuffled_idx[-n_validation:],
-        }
-        pickle.dump(save, f)
-
-training_loader = torch.utils.data.DataLoader(
-    training,
-    batch_size=batch_size,
-    shuffle=True,
-    collate_fn=partial(
-        collate_fn, cut_off=args.rcut / 2, max_neighbors=args.max_neighbors
-    ),
-    num_workers=0,
-    pin_memory=True if device.type == "cuda" else False,
-    drop_last=True,
-)
-validation_loader = torch.utils.data.DataLoader(
-    validation,
-    batch_size=batch_size,
-    shuffle=False,
-    collate_fn=partial(
-        collate_fn, cut_off=args.rcut / 2, max_neighbors=args.max_neighbors
-    ),
-    num_workers=0,
-    pin_memory=True if device.type == "cuda" else False,
-    drop_last=False,
-)
 
 max_epochs = args.epochs
 starting_epoch = 0
 
+# Setup model and optimization
 model = RadNet(
     cut_off=args.rcut / 2,
     shape=tuple(args.image_shape),
@@ -129,12 +101,13 @@ model = RadNet(
 ).to(device)
 
 loss_fn = torch.nn.MSELoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
+optimizer = torch.optim.AdamW(model.parameters(), lr=args.learning_rate)
 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
     optimizer, "min", factor=0.9, patience=30, min_lr=1e-7, threshold=1e-8
 )
 
 
+# Define loops
 def train_loop():
     model.train()
     losses = []
@@ -204,15 +177,14 @@ def checkpoint(epoch_num, best_loss, stopping_counter, name="ckpt.torch"):
     )
 
 
-checkpoint_exists = False
 best_loss = np.inf
 stopping_counter = 0
 stopping_patience = 250
 
+# Restart or not
 checkpoint_files = glob.glob("ckpt*.torch")
 if checkpoint_files:
     print("Found checkpoint file, continuing training")
-    checkpoint_exists = True
     checkpoint_data = torch.load(checkpoint_files[0], map_location=device)
     model.load_state_dict(checkpoint_data["model_state_dict"])
     optimizer.load_state_dict(checkpoint_data["optimizer_state_dict"])
@@ -220,9 +192,52 @@ if checkpoint_files:
     starting_epoch = checkpoint_data["epoch"]
     best_loss = checkpoint_data["best_loss"]
     stopping_counter = checkpoint_data["stopping_counter"]
+
+    with open(args.idx_savepath, "rb") as f:
+        idx_dict = pickle.load(f)
+    training = torch.utils.data.Subset(dataset, idx_dict["train_idx"])
+    validation = torch.utils.data.Subset(dataset, idx_dict["val_idx"])
 else:
+    shuffled_idx = torch.randperm(len(dataset)).tolist()
+    training = torch.utils.data.Subset(dataset, shuffled_idx[:n_training])
+    validation = torch.utils.data.Subset(dataset, shuffled_idx[-n_validation:])
+
+    with open(args.idx_savepath, "wb") as f:
+        save = {
+            "train_idx": shuffled_idx[:n_training],
+            "val_idx": shuffled_idx[-n_validation:],
+        }
+        pickle.dump(save, f)
+
     print("checkpoint not found, training from scratch")
 
+
+# Define loaders
+training_loader = torch.utils.data.DataLoader(
+    training,
+    batch_size=batch_size,
+    shuffle=True,
+    collate_fn=partial(
+        collate_fn, cut_off=args.rcut / 2, max_neighbors=args.max_neighbors
+    ),
+    num_workers=0,
+    pin_memory=True if device.type == "cuda" else False,
+    drop_last=True,
+)
+validation_loader = torch.utils.data.DataLoader(
+    validation,
+    batch_size=batch_size,
+    shuffle=False,
+    collate_fn=partial(
+        collate_fn, cut_off=args.rcut / 2, max_neighbors=args.max_neighbors
+    ),
+    num_workers=0,
+    pin_memory=True if device.type == "cuda" else False,
+    drop_last=False,
+)
+
+
+# Training
 for epoch_num in range(starting_epoch, max_epochs):
     avg_train_loss = train_loop()
     avg_validation_loss = validation_loop(epoch_num)
@@ -232,8 +247,8 @@ for epoch_num in range(starting_epoch, max_epochs):
     if avg_validation_loss < best_loss:
         print("--- Better loss found, checkpointing to best.torch")
         best_loss = avg_validation_loss
-        checkpoint(epoch_num, best_loss, stopping_counter, name="best.torch")
         stopping_counter = 0
+        checkpoint(epoch_num, best_loss, stopping_counter, name="best.torch")
     else:
         stopping_counter += 1
 
