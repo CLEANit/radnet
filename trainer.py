@@ -84,6 +84,9 @@ parser.add_argument(
     help="Number of consecutive epochs without val loss improvement before stopping training.",
 )
 parser.add_argument("--weight_decay", type=float, default=0, help="Weight decay.")
+parser.add_argument(
+    "--augmentation", action="store_true", help="Activates data augmentation"
+)
 
 # Execute parse_args()
 args = parser.parse_args()
@@ -97,7 +100,9 @@ if filename is None:
 
 batch_size = args.batch_size
 split_pct = args.split
-dataset = HDF5Dataset(filename, sample_frac=args.sample_frac)
+dataset = HDF5Dataset(
+    filename, sample_frac=args.sample_frac, augmentation=args.augmentation
+)
 n_training = int(len(dataset) * split_pct)
 n_validation = len(dataset) - n_training
 shuffled_idx = torch.randperm(len(dataset)).tolist()
