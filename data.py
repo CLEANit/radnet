@@ -2,6 +2,7 @@ import torch
 import h5py
 import numpy as np
 from ase import Atoms, neighborlist
+from ase.cell import Cell
 import ase.neighborlist
 
 
@@ -10,6 +11,29 @@ def _make_float32(samples):
         if v.dtype == torch.float64:
             samples[k] = v.float()
     return samples
+
+
+def target_to_tensor(target):
+    return np.array(
+        [
+            [target[0], target[1], target[2]],
+            [target[1], target[3], target[4]],
+            [target[2], target[4], target[5]],
+        ]
+    )
+
+
+def tensor_to_target(tensor):
+    return np.array(
+        [
+            tensor[0, 0],
+            tensor[0, 1],
+            tensor[0, 2],
+            tensor[1, 1],
+            tensor[1, 2],
+            tensor[2, 2],
+        ]
+    )
 
 
 def flatten(samples, cut_off, max_neighbors):
@@ -78,18 +102,21 @@ class HDF5Dataset(torch.utils.data.Dataset):
         filename,
         normalize=True,
         normalize_mode="data",
-        cut_off=3.0,
-        max_neighbors=50,
+        augmentation=False,
         sample_frac=1,
     ):
         self.filename = filename
-        self.cut_off = cut_off
-        self.max_neighbors = max_neighbors
         self.sample_frac = sample_frac
         self._load_data()
-        if normalize:
+
+        self.augmentation = augmentation
+        if self.augmentation:
+            self._prepare_augmentations()
+
+        self.normalize = normalize
+        if self.normalize:
             assert normalize_mode in ["data", "file"]
-            self._normalize(normalize_mode)
+            self._initial_normalization(normalize_mode)
 
     def _load_data(self):
         """
@@ -112,8 +139,9 @@ class HDF5Dataset(torch.utils.data.Dataset):
                 self.ams += struct_vals["atomic_numbers"][:].tolist()
                 if i >= max_samples:
                     break
+        self.n_outputs = self.data[0]["target"].shape[0]
 
-    def _normalize(self, normalize_mode):
+    def _initial_normalization(self, normalize_mode):
         if normalize_mode == "data":
             vals = []
             for elem in self.data:
@@ -145,11 +173,14 @@ class HDF5Dataset(torch.utils.data.Dataset):
             print("mins:", mins)
             print("maxs:", maxs)
 
-        for i, elem in enumerate(self.data):
-            self.data[i]["target"] = (elem["target"] - mins) / (maxs - mins)
-
         self.mins = mins
         self.maxs = maxs
+
+    def _normalize_data(self, datapoint):
+        datapoint["target"] = (datapoint["target"] - self.mins) / (
+            self.maxs - self.mins
+        )
+        return datapoint
 
     def unique_atomic_numbers(self):
         return list(set(self.ams))
@@ -158,4 +189,61 @@ class HDF5Dataset(torch.utils.data.Dataset):
         return len(self.data)
 
     def __getitem__(self, idx):
-        return self.data[idx]
+        datapoint = self.data[idx].copy()
+        if self.augmentation:
+            datapoint = self._augment_data(datapoint)
+        if self.normalize:
+            datapoint = self._normalize_data(datapoint)
+        return datapoint
+
+    def _prepare_augmentations(self):
+        def x_rotation(theta):
+            return np.array(
+                [
+                    [1, 0, 0],
+                    [0, np.cos(theta), -np.sin(theta)],
+                    [0, np.sin(theta), np.cos(theta)],
+                ]
+            )
+
+        def y_rotation(theta):
+            return np.array(
+                [
+                    [np.cos(theta), 0, np.sin(theta)],
+                    [0, 1, 0],
+                    [-np.sin(theta), 0, np.cos(theta)],
+                ]
+            )
+
+        def z_rotation(theta):
+            return np.array(
+                [
+                    [np.cos(theta), -np.sin(theta), 0],
+                    [np.sin(theta), np.cos(theta), 0],
+                    [0, 0, 1],
+                ]
+            )
+
+        self.possible_rotations = [x_rotation, y_rotation, z_rotation]
+
+        if self.n_outputs == 6:
+            for datapoint in self.data:
+                datapoint["target_tensor"] = target_to_tensor(datapoint["target"])
+
+    def _augment_data(self, datapoint):
+        cell = Cell(datapoint["cell"])
+        scaled_positions = cell.scaled_positions(datapoint["coordinates"])
+        rotation_matrix = self.possible_rotations[np.random.randint(3)](
+            2 * np.pi * np.random.rand()
+        )
+        rotated_cell = cell.array @ rotation_matrix.T
+        datapoint["cell"] = rotated_cell
+        datapoint["coordinates"] = scaled_positions @ rotated_cell
+
+        if self.n_outputs == 3:
+            datapoint["target"] = rotation_matrix @ datapoint["target"]
+        elif self.n_outputs == 6:
+            datapoint["target"] = tensor_to_target(
+                rotation_matrix @ datapoint["target_tensor"] @ rotation_matrix.T
+            )
+        return datapoint

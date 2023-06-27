@@ -12,7 +12,9 @@ parser = argparse.ArgumentParser(
     formatter_class=argparse.ArgumentDefaultsHelpFormatter,
 )
 parser.add_argument(
-    "datapath", type=str, help="Path to the dataset to evaluate.",
+    "datapath",
+    type=str,
+    help="Path to the dataset to evaluate.",
 )
 parser.add_argument(
     "--idx_filepath",
@@ -33,7 +35,10 @@ parser.add_argument(
     default=False,
 )
 parser.add_argument(
-    "--batch_size", type=int, default=32, help="Batch size for the inference.",
+    "--batch_size",
+    type=int,
+    default=32,
+    help="Batch size for the inference.",
 )
 parser.add_argument(
     "--rcut", type=float, default=3.5, help="Cut off radius (in Angstrom)"
@@ -67,7 +72,11 @@ parser.add_argument(
     help="Path to the checkpoint file to load the model from.",
 )
 parser.add_argument(
-    "--device", type=str, default="cpu", choices=("cpu", "cuda"), help="Device.",
+    "--device",
+    type=str,
+    default="cpu",
+    choices=("cpu", "cuda"),
+    help="Device.",
 )
 args = parser.parse_args()
 
@@ -145,3 +154,6 @@ rmse = np.sqrt(np.mean(np.concatenate(squared_errors)))
 print("Prediction metrics:")
 print(f" --MAE: {mae}")
 print(f" --RMSE: {rmse}")
+
+with open("inference_results.txt", "w") as f:
+    f.write(f"{mae}\t{rmse}")

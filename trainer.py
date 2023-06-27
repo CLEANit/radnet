@@ -67,6 +67,29 @@ parser.add_argument(
     default=None,
     help="Path to save the training/validation indices.",
 )
+parser.add_argument(
+    "--patience",
+    type=int,
+    default=50,
+    help="Number of consecutive epochs without val loss improvement before reducing lr.",
+)
+parser.add_argument(
+    "--factor",
+    type=float,
+    default=0.9,
+    help="Learning rate reduction factor",
+)
+parser.add_argument(
+    "--stopping_patience",
+    type=int,
+    default=500,
+    help="Number of consecutive epochs without val loss improvement before stopping training.",
+)
+parser.add_argument("--weight_decay", type=float, default=0, help="Weight decay.")
+parser.add_argument(
+    "--augmentation", action="store_true", help="Activates data augmentation"
+)
+
 # Execute parse_args()
 args = parser.parse_args()
 
@@ -82,7 +105,9 @@ if filename is None:
 # Set some values
 batch_size = args.batch_size
 split_pct = args.split
-dataset = HDF5Dataset(filename, sample_frac=args.sample_frac)
+dataset = HDF5Dataset(
+    filename, sample_frac=args.sample_frac, augmentation=args.augmentation
+)
 n_training = int(len(dataset) * split_pct)
 n_validation = len(dataset) - n_training
 
@@ -101,9 +126,17 @@ model = RadNet(
 ).to(device)
 
 loss_fn = torch.nn.MSELoss()
-optimizer = torch.optim.AdamW(model.parameters(), lr=args.learning_rate)
+
+optimizer = torch.optim.Adam(
+    model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay
+)
 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-    optimizer, "min", factor=0.9, patience=30, min_lr=1e-7, threshold=1e-8
+    optimizer,
+    "min",
+    factor=args.factor,
+    patience=args.patience,
+    min_lr=3e-6,
+    threshold=1e-8,
 )
 
 
@@ -179,7 +212,6 @@ def checkpoint(epoch_num, best_loss, stopping_counter, name="ckpt.torch"):
 
 best_loss = np.inf
 stopping_counter = 0
-stopping_patience = 250
 
 # Restart or not
 checkpoint_files = glob.glob("ckpt*.torch")
@@ -260,11 +292,13 @@ for epoch_num in range(starting_epoch, max_epochs):
         pass
 
     print(
-        f"-- epoch: {epoch_num} | train_loss: {avg_train_loss} | validation_loss: {avg_validation_loss} | learning rate: {optimizer.param_groups[0]['lr']}"
+        f"-- epoch: {epoch_num} | train_loss: {avg_train_loss} | validation_loss: {avg_validation_loss}"
     )
     print(
-        f"          learning rate: {optimizer.param_groups[0]['lr']} | stopping_counter: {stopping_counter}"
+        f"       learning rate: {optimizer.param_groups[0]['lr']} | stopping_counter: {stopping_counter}"
     )
-    if stopping_counter == stopping_patience:
-        print("Training complete.")
+
+    if stopping_counter == args.stopping_patience:
         break
+
+print("Training complete.")
