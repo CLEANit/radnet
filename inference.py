@@ -78,12 +78,19 @@ parser.add_argument(
     choices=("cpu", "cuda"),
     help="Device.",
 )
+parser.add_argument(
+    "--augmentation", action="store_true", help="Activates data augmentation"
+)
 args = parser.parse_args()
+
 
 device = torch.device(args.device)
 batch_size = args.batch_size
 
-dataset = HDF5Dataset(args.datapath, normalize=True, normalize_mode="file")
+
+dataset = HDF5Dataset(
+    args.datapath, normalize=True, normalize_mode="file", augmentation=args.augmentation
+)
 
 # Choose the subset of data to evaluate if needed
 if (args.idx_filepath is not None) and (args.manual_index is not None):
