@@ -21,7 +21,11 @@ def build_parser():
         type=str,
         help="Path to the positions file.",
     )
-    parser.add_argument("prediction", choices=["effch"], help="Type of prediction.")
+    parser.add_argument(
+        "prediction",
+        choices=["pol", "effch", "dielectric", "suscept_deriv", "raman_tensor"],
+        help="Type of prediction.",
+    )
     parser.add_argument(
         "--rcut", type=float, default=3.5, help="Cut off radius (in Angstrom)"
     )
@@ -59,6 +63,12 @@ def build_parser():
         default="cpu",
         choices=("cpu", "cuda"),
         help="Device.",
+    )
+    parser.add_argument(
+        "--phonon_file",
+        type=str,
+        default=None,
+        help="h5 file containing the dft eigenmodes.",
     )
     return parser
 
@@ -142,17 +152,74 @@ def get_polarization(batch, model, device, mins, maxs):
 
 
 def get_effective_charges(polarization, coordinates, atoms, asr=True):
-    # effective_charges = torch.empty((coordinates.shape[0], 3, 3))
     derivatives = torch_derivative(polarization, coordinates)
-    # for i in range(len(derivatives)):
-    #    for j in range(len(derivatives[i])):
-    #        effective_charges[j, i] = derivatives[i][j]
     effective_charges = torch.transpose(derivatives, 0, 1)
     effective_charges *= atoms.cell.volume / Bohr**3
     if asr:
         # Mean should be 0
         effective_charges -= torch.mean(effective_charges, dim=0)
     return effective_charges
+
+
+def get_dielectric_tensor(batch, model, device, mins, maxs):
+    coordinates = batch["coordinates"].to(device).requires_grad_()
+    dielectric = model(
+        coordinates,
+        batch["atomic_numbers"].to(device),
+        batch["neighbors"].to(device),
+        batch["use_neighbors"].to(device),
+        batch["indices"].to(device),
+    )
+    dielectric = dielectric[0] * (maxs - mins) + mins
+    dielectric = reshape_dielectric_tensor(dielectric)
+    return dielectric, coordinates
+
+
+def reshape_dielectric_tensor(dielectric):
+    out = torch.empty((3, 3))
+    for i in range(3):
+        for j in range(3):
+            if (i == 0) or (j == 0):
+                out[i, j] = dielectric[i + j]
+            else:
+                out[i, j] = dielectric[i + j + 1]
+    return out
+
+
+def get_suscept_deriv(dielectric, coordinates, atoms):
+    dielectric_deriv = torch_derivative(dielectric, coordinates)
+    suscept_deriv = (4 * np.pi) ** (-1) * dielectric_deriv
+    suscept_deriv = (
+        suscept_deriv.transpose(0, 1).transpose(1, 2).reshape(len(atoms), 3, 3, 3)
+    )
+    return suscept_deriv
+
+
+def read_eigenmodes(phonon_file):
+    assert (
+        args.phonon_file is not None
+    ), "A phonon file should be given for this calculation."
+    phonon_file = phonon_file if phonon_file.endswith(".h5") else phonon_file + ".h5"
+    import h5py
+
+    with h5py.File(phonon_file) as f:
+        eigenmodes = f["eigenmodes"][:]
+    return eigenmodes
+
+
+def get_raman_tensor(suscept_deriv, eigenmodes):
+    nat = int(eigenmodes.shape[0] / 3)
+    assert nat == suscept_deriv.shape[0]
+
+    suscept_deriv = suscept_deriv.detach().cpu().numpy()
+    raman_tensors = np.zeros((nat * 3, 3, 3))
+    for l in range(nat * 3):
+        tensor = np.zeros((3, 3))
+        for m in range(nat):
+            for alpha in range(3):
+                tensor += suscept_deriv[m, alpha] * eigenmodes[l, m, alpha]
+        raman_tensors[l] = tensor
+    return raman_tensors
 
 
 def get_loto_splitting():
@@ -183,6 +250,7 @@ def main(args):
             polarization, coordinates = get_polarization(
                 batch, model, device, mins, maxs
             )
+            print(polarization)
             if args.prediction in ["effch", "loto"]:
                 effective_charges = get_effective_charges(
                     polarization, coordinates, atoms, asr=True
@@ -197,6 +265,30 @@ def main(args):
             print(effective_charges)
         elif args.prediction == "loto":
             pass
+
+    elif args.prediction in ["dielectric", "suscept_deriv", "raman_tensor"]:
+        assert model.n_outputs == 6
+
+        for batch in prediction_loader:
+            dielectric, coordinates = get_dielectric_tensor(
+                batch, model, device, mins, maxs
+            )
+            if args.prediction in ["suscept_deriv", "raman_tensor"]:
+                suscept_deriv = get_suscept_deriv(dielectric, coordinates, atoms)
+
+                if args.prediction == "raman_tensor":
+                    eigenmodes = read_eigenmodes(args.phonon_file)
+                    raman_tensor = get_raman_tensor(suscept_deriv, eigenmodes)
+
+        if args.prediction == "dielectric":
+            print("Dielectric tensor:")
+            print(dielectric)
+        elif args.prediction == "suscept_deriv":
+            print("Electric susceptibility derivatives:")
+            print(suscept_deriv)
+        elif args.prediction == "raman_tensor":
+            print("Raman tensor:")
+            print(raman_tensor)
 
 
 if __name__ == "__main__":
