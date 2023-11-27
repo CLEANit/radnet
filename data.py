@@ -140,6 +140,10 @@ class HDF5Dataset(torch.utils.data.Dataset):
                 if i >= max_samples:
                     break
         self.n_outputs = self.data[0]["target"].shape[0]
+        if self.n_outputs not in [3, 6]:
+            raise RuntimeError(
+                f"The output target shape {self.n_outputs} is not recognized."
+            )
 
     def _initial_normalization(self, normalize_mode):
         if normalize_mode == "data":
@@ -150,9 +154,18 @@ class HDF5Dataset(torch.utils.data.Dataset):
             vals = np.array(vals)
             mins = vals.min(0)
             maxs = vals.max(0)
+            if self.augmentation:
+                if self.n_outputs == 3:
+                    maxval = max(np.absolute(maxs).max(), np.absolute(mins).max())
+                    maxs = np.array([maxval, maxval, maxval])
+                    mins = np.array([-maxval, -maxval, -maxval])
+                elif self.n_outputs == 6:
+                    raise NotImplementedError()
+
             print("INFO from normalization:")
             print("mins:", mins)
             print("maxs:", maxs)
+
             print('writing to file "normalization_info.dat"')
             f = open("normalization_info.dat", "w")
             f.write("Mins:\n")
@@ -164,6 +177,7 @@ class HDF5Dataset(torch.utils.data.Dataset):
                 f.write(str(maxelem) + "\t")
             f.write("\n")
             f.close()
+
         elif normalize_mode == "file":
             f = open("normalization_info.dat", "r")
             txt = f.read().split("\n")
