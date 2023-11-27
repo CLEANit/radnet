@@ -68,7 +68,12 @@ def build_parser():
         "--phonon_file",
         type=str,
         default=None,
-        help="h5 file containing the dft eigenmodes.",
+        help="h5 file containing the dft eigenmodes for raman tensor calculation.",
+    )
+    parser.add_argument(
+        "--save_results",
+        action="store_true",
+        help="Whether to save the results for further analysis.",
     )
     return parser
 
@@ -186,12 +191,14 @@ def reshape_dielectric_tensor(dielectric):
     return out
 
 
-def get_suscept_deriv(dielectric, coordinates, atoms):
+def get_suscept_deriv(dielectric, coordinates, atoms, asr=True):
     dielectric_deriv = torch_derivative(dielectric, coordinates)
     suscept_deriv = (4 * np.pi) ** (-1) * dielectric_deriv
     suscept_deriv = (
         suscept_deriv.transpose(0, 1).transpose(1, 2).reshape(len(atoms), 3, 3, 3)
     )
+    if asr:
+        suscept_deriv -= torch.mean(suscept_deriv, dim=0)
     return suscept_deriv
 
 
@@ -207,7 +214,7 @@ def read_eigenmodes(phonon_file):
     return eigenmodes
 
 
-def get_raman_tensor(suscept_deriv, eigenmodes):
+def get_raman_tensor(suscept_deriv, eigenmodes, atoms):
     nat = int(eigenmodes.shape[0] / 3)
     assert nat == suscept_deriv.shape[0]
 
@@ -219,11 +226,9 @@ def get_raman_tensor(suscept_deriv, eigenmodes):
             for alpha in range(3):
                 tensor += suscept_deriv[m, alpha] * eigenmodes[l, m, alpha]
         raman_tensors[l] = tensor
+
+    raman_tensors *= np.sqrt(atoms.cell.volume / Bohr**3)
     return raman_tensors
-
-
-def get_loto_splitting():
-    pass
 
 
 def main(args):
@@ -243,28 +248,30 @@ def main(args):
     maxs = torch.tensor(dataset.maxs).to(device)
 
     torch.set_printoptions(precision=8)
-    if args.prediction in ["pol", "effch", "loto"]:
+    if args.prediction in ["pol", "effch"]:
         assert model.n_outputs == 3
 
         for batch in prediction_loader:
             polarization, coordinates = get_polarization(
                 batch, model, device, mins, maxs
             )
-            print(polarization)
-            if args.prediction in ["effch", "loto"]:
+            if args.prediction == "effch":
                 effective_charges = get_effective_charges(
                     polarization, coordinates, atoms, asr=True
                 )
-            if args.prediction in ["loto"]:
-                loto_splitting = get_loto_splitting()
 
         if args.prediction == "pol":
             print("Polarization values: ", polarization)
+            if args.save_results:
+                np.save("polarization.npy", polarization.detach().cpu().numpy())
+
         elif args.prediction == "effch":
             print("Born effective charges:")
             print(effective_charges)
-        elif args.prediction == "loto":
-            pass
+            if args.save_results:
+                np.save(
+                    "effective_charges.npy", effective_charges.detach().cpu().numpy()
+                )
 
     elif args.prediction in ["dielectric", "suscept_deriv", "raman_tensor"]:
         assert model.n_outputs == 6
@@ -278,17 +285,23 @@ def main(args):
 
                 if args.prediction == "raman_tensor":
                     eigenmodes = read_eigenmodes(args.phonon_file)
-                    raman_tensor = get_raman_tensor(suscept_deriv, eigenmodes)
+                    raman_tensor = get_raman_tensor(suscept_deriv, eigenmodes, atoms)
 
         if args.prediction == "dielectric":
             print("Dielectric tensor:")
             print(dielectric)
+            if args.save_results:
+                np.save("dielectric.npy", dielectric.detach().cpu().numpy())
+
         elif args.prediction == "suscept_deriv":
             print("Electric susceptibility derivatives:")
             print(suscept_deriv)
+
         elif args.prediction == "raman_tensor":
             print("Raman tensor:")
             print(raman_tensor)
+            if args.save_results:
+                np.save("raman_tensor.npy", raman_tensor)
 
 
 if __name__ == "__main__":

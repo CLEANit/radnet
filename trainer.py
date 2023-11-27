@@ -89,6 +89,13 @@ parser.add_argument("--weight_decay", type=float, default=0, help="Weight decay.
 parser.add_argument(
     "--augmentation", action="store_true", help="Activates data augmentation"
 )
+parser.add_argument(
+    "--n_augmented_val",
+    default=1,
+    type=int,
+    help="Only used in augmented trainings. Number of times the validation data is evaluated in each epoch.",
+)
+
 
 # Execute parse_args()
 args = parser.parse_args()
@@ -162,24 +169,26 @@ def train_loop():
     return np.mean(losses)
 
 
-def validation_loop(epoch_num):
+def validation_loop(epoch_num, n_augmented_val=1):
     model.eval()
     losses = []
     all_trues = []
     all_preds = []
-    for i, batch in enumerate(validation_loader):
-        preds = model(
-            batch["coordinates"].to(device),
-            batch["atomic_numbers"].to(device),
-            batch["neighbors"].to(device),
-            batch["use_neighbors"].to(device),
-            batch["indices"].to(device),
-        )
-        trues = batch["target"].to(device)
-        loss = loss_fn(preds, trues)
-        losses.append(loss.detach().cpu().numpy())
-        all_trues.append(trues.detach().cpu())
-        all_preds.append(preds.detach().cpu())
+    with torch.no_grad():
+        for _ in range(n_augmented_val):
+            for i, batch in enumerate(validation_loader):
+                preds = model(
+                    batch["coordinates"].to(device),
+                    batch["atomic_numbers"].to(device),
+                    batch["neighbors"].to(device),
+                    batch["use_neighbors"].to(device),
+                    batch["indices"].to(device),
+                )
+                trues = batch["target"].to(device)
+                loss = loss_fn(preds, trues)
+                losses.append(loss.cpu().numpy())
+                all_trues.append(trues.cpu())
+                all_preds.append(preds.cpu())
     all_trues = torch.cat(all_trues).numpy()
     all_preds = torch.cat(all_preds).numpy()
 
@@ -272,7 +281,10 @@ validation_loader = torch.utils.data.DataLoader(
 # Training
 for epoch_num in range(starting_epoch, max_epochs):
     avg_train_loss = train_loop()
-    avg_validation_loss = validation_loop(epoch_num)
+    if args.augmentation:
+        avg_validation_loss = validation_loop(epoch_num, args.n_augmented_val)
+    else:
+        avg_validation_loss = validation_loop(epoch_num, 1)
 
     scheduler.step(avg_validation_loss)
 
