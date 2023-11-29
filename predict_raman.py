@@ -261,7 +261,8 @@ def main(args):
                 )
 
         if args.prediction == "pol":
-            print("Polarization values: ", polarization)
+            print("Polarization values: ")
+            print(polarization)
             if args.save_results:
                 np.save("polarization.npy", polarization.detach().cpu().numpy())
 
