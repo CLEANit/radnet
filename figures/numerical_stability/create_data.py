@@ -50,31 +50,29 @@ def create_parser():
     return parser
 
 
-def extract_value(prediction: str, output: str) -> np.array:
+def read_value(prediction: str) -> np.array:
     if prediction == "pol":
-        output = output.split("\n")
+        output = np.load("polarization.npy").reshape(3)
+        os.remove("polarization.npy")
+        return output
 
-        for i, line in enumerate(output):
-            if line.startswith("Polarization"):
-                value_index = i + 1
-        output = output[value_index].split()[:-1]
-        output[0] = output[0].lstrip("tensor([[").rstrip(",")
-        output[1] = output[1].rstrip(",")
-        output[2] = output[2].rstrip("]],")
-        output = np.array([float(o) for o in output])
+    elif prediction == "effch":
+        output = np.load("effective_charges.npy").reshape(-1, 3, 3)
+        os.remove("effective_charges.npy")
         return output
     else:
         raise NotImplementedError()
 
 
 def main(args):
-    n_models = 2
+    n_models = 5
     rcuts = ["2.0", "4.0"]
     script_dir = os.path.dirname(__file__)
     base_command = (
         f"python {script_dir}/../../predict_raman.py {args.pos_file} {args.prediction} "
         f"--n_outputs {args.n_outputs} --sigma {args.sigma} --device {args.device} "
         f"--image_shape {args.image_shape[0]} {args.image_shape[1]} {args.image_shape[2]} "
+        f"--save_results "
     )
 
     all_values = []
@@ -85,7 +83,7 @@ def main(args):
             command = base_command + f"--rcut {rcut} --saved_model_path {model_path}"
             out = subprocess.run(command.split(), capture_output=True, text=True)
             if out.returncode == 0:
-                value = extract_value(args.prediction, out.stdout)
+                value = read_value(args.prediction)
                 all_values[-1].append(value)
             else:
                 print("There was a problem with the subprocess!")
