@@ -81,6 +81,11 @@ parser.add_argument(
 parser.add_argument(
     "--augmentation", action="store_true", help="Activates data augmentation"
 )
+parser.add_argument(
+    "--detailed",
+    action="store_true",
+    help="If True, write detailed results",
+)
 args = parser.parse_args()
 
 
@@ -137,6 +142,10 @@ maxs = torch.tensor(dataset.maxs).to(device)
 
 absolute_errors = []
 squared_errors = []
+
+if args.detailed:
+    all_trues, all_preds = [], []
+
 with torch.no_grad():
     for i, batch in enumerate(tqdm(inference_loader)):
         preds = model(
@@ -149,6 +158,9 @@ with torch.no_grad():
         preds = preds * (maxs - mins) + mins
         trues = batch["target"].to(device)
         trues = trues * (maxs - mins) + mins
+        if args.detailed:
+            all_preds.append(preds)
+            all_trues.append(trues)
 
         absolute_errors.append(
             torch.mean(torch.abs(preds - trues), dim=-1).cpu().numpy()
@@ -164,3 +176,10 @@ print(f" --RMSE: {rmse}")
 
 with open("inference_results.txt", "w") as f:
     f.write(f"{mae}\t{rmse}")
+
+if args.detailed:
+    all_trues = np.concatenate([t.cpu().numpy() for t in all_trues])
+    all_preds = np.concatenate([p.cpu().numpy() for p in all_preds])
+
+    with open("detailed_results.pkl", "wb") as f:
+        pickle.dump({"trues": all_trues, "preds": all_preds}, f)

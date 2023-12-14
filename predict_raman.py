@@ -297,12 +297,14 @@ def main(args):
         elif args.prediction == "suscept_deriv":
             print("Electric susceptibility derivatives:")
             print(suscept_deriv)
+            if args.save_results:
+                np.save("suscept_deriv.npy", suscept_deriv.detach().cpu().numpy())
 
         elif args.prediction == "raman_tensor":
             print("Raman tensor:")
             print(raman_tensor)
             if args.save_results:
-                np.save("raman_tensor.npy", raman_tensor)
+                np.save("raman_tensor.npy", raman_tensor.detach().cpu().numpy())
 
 
 if __name__ == "__main__":
