@@ -5,10 +5,10 @@ import pickle
 
 
 data_dir = "data"
-inference_pol_rcut_path = os.path.join(data_dir, "BN_pol_inference_1.5_4.0.pkl")
-inference_die_rcut_path = os.path.join(data_dir, "BN_die_inference_1.5_4.0.pkl")
-rcut_effch_data_path = os.path.join(data_dir, "BN_effch_1.5_4.0.npy")
-rcut_suscept_data_path = os.path.join(data_dir, "BN_suscept_1.5_4.0.npy")
+inference_pol_rcut_path = os.path.join(data_dir, "BN_pol_inference_1.5_6.5.pkl")
+inference_die_rcut_path = os.path.join(data_dir, "BN_die_inference_1.5_6.5.pkl")
+rcut_effch_data_path = os.path.join(data_dir, "BN_effch_1.5_6.5.npy")
+rcut_suscept_data_path = os.path.join(data_dir, "BN_suscept_1.5_6.5.npy")
 
 rcut_effch_data = np.load(rcut_effch_data_path)
 rcut_suscept_data = np.load(rcut_suscept_data_path)
@@ -33,7 +33,7 @@ rcut_suscept_data = rcut_suscept_data.reshape(
 rcut_suscept_stds = np.mean(np.std(rcut_suscept_data, axis=1), axis=1)
 
 
-rcuts = [1.5, 2.0, 2.5, 3.0, 3.5, 4.0]
+rcuts = [1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5]
 
 font = {"family": "CMU Serif", "size": 18}
 plt.rc("font", **font)
@@ -48,7 +48,7 @@ ax1 = fig.add_subplot(gs[0, 0])
 ax1.set_title("Cutoff convergence", fontsize=25)
 pol1 = ax1.errorbar(rcuts, inf_pol_rcut_means, yerr=inf_pol_rcut_stds, color="b")
 ax1.grid(linestyle="-.")
-ax1.set_ylabel("Test MAE")
+ax1.set_ylabel("Validation MAE")
 ax1.set_xlabel("Cutoff radius (\AA)")
 ax1.set_yscale("log")
 ax1.spines["left"].set_edgecolor(pol1[0].get_color())
@@ -68,7 +68,7 @@ ax3.set_ylim([0, None])
 ax3.yaxis.tick_right()
 
 ax4 = ax3.twinx()
-ax4.set_ylabel("Test MAE")
+ax4.set_ylabel("Validation MAE")
 ax4.set_xlim(ax3.get_xlim())
 
 ax5 = fig.add_subplot(gs[1, 0])
