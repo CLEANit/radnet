@@ -72,7 +72,19 @@ def main(args):
     workdir = os.getcwd()
 
     n_models = 5
-    rcuts = ["1.5", "2.0", "2.5", "3.0", "3.5", "4.0"]
+    rcuts = [
+        "1.5",
+        "2.0",
+        "2.5",
+        "3.0",
+        "3.5",
+        "4.0",
+        "4.5",
+        "5.0",
+        "5.5",
+        "6.0",
+        "6.5",
+    ]
     script_dir = os.path.dirname(__file__)
     base_command = (
         f"python {script_dir}/../../predict_raman.py {os.path.join(workdir, args.pos_file)} {args.prediction} "
@@ -83,8 +95,10 @@ def main(args):
 
     all_values = []
     for rcut in rcuts:
+        print(rcut)
         all_values.append([])
         for i in range(1, n_models + 1):
+            print(i)
             model_dir = args.saved_model_dir + f"{rcut}/{i}/"
             os.chdir(model_dir)
 

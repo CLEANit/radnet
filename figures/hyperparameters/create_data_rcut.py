@@ -58,19 +58,33 @@ def main(args):
     workdir = os.getcwd()
 
     n_models = 5
-    rcuts = ["1.5", "2.0", "2.5", "3.0", "3.5", "4.0"]
+    rcuts = [
+        "1.5",
+        "2.0",
+        "2.5",
+        "3.0",
+        "3.5",
+        "4.0",
+        "4.5",
+        "5.0",
+        "5.5",
+        "6.0",
+        "6.5",
+    ]
     script_dir = os.path.dirname(__file__)
     base_command = (
         f"python {script_dir}/../../inference.py {args.datapath} --n_outputs {args.n_outputs} "
-        f"--sigma {args.sigma} --device {args.device} "
+        f"--sigma {args.sigma} --device {args.device} --idx_filepath train_val_indices.pkl "
         f"--image_shape {args.image_shape[0]} {args.image_shape[1]} {args.image_shape[2]} "
     )
 
     all_maes, all_rmses = [], []
     for rcut in rcuts:
+        print(rcut)
         all_maes.append([])
         all_rmses.append([])
         for i in range(1, n_models + 1):
+            print(i)
             model_dir = args.saved_model_dir + f"{rcut}/{i}/"
             os.chdir(model_dir)
 

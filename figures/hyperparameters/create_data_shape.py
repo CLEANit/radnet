@@ -70,7 +70,10 @@ def main(args):
             os.chdir(model_dir)
 
             model_name = "best.torch"
-            command = base_command + f"--image_shape {shape} {shape} {shape} --saved_model_path {model_name}"
+            command = (
+                base_command
+                + f"--image_shape {shape} {shape} {shape} --saved_model_path {model_name}"
+            )
             out = subprocess.run(command.split(), capture_output=True, text=True)
             if out.returncode == 0:
                 mae, rmse = read_values()
