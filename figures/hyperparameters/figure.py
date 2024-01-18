@@ -66,16 +66,16 @@ plt.rcParams["axes.formatter.limits"] = (0, 0)
 pol_color = "b"
 die_color = "r"
 
-fig = plt.figure(figsize=(16, 14))
+fig = plt.figure(figsize=(16, 10))
 gs = fig.add_gridspec(
     nrows=2,
     ncols=2,
     left=0.06,
     right=0.94,
-    top=0.96,
-    bottom=0.06,
+    top=0.955,
+    bottom=0.07,
     hspace=0.0,
-    wspace=0.24,
+    wspace=0.22,
 )
 
 ax1 = fig.add_subplot(gs[0, 0])
@@ -110,7 +110,7 @@ ax3.yaxis.set_ticks([0, 1e-4, 2e-4, 3e-4, 4e-4, 5e-4, 6e-4])
 ax3.yaxis.set_ticklabels(["0.0", "1.0", "2.0", "3.0", "4.0", "5.0", "6.0"])
 ax3.tick_params(axis="y", which="both", colors=die_color)
 fig.text(
-    ax3.get_position().get_points()[0, 0] - 0.04,
+    ax3.get_position().get_points()[0, 0] - 0.042,
     ax3.get_position().get_points()[1, 1] - 0.025,
     r"$\times 10^{-4}$",
     color=die3[0].get_color(),
@@ -156,7 +156,7 @@ ax5.tick_params(axis="y", which="both", colors=die_color)
 ax5.yaxis.set_ticks([0, 0.00025, 0.0005, 0.00075, 0.001, 0.00125, 0.0015, 0.00175])
 ax5.yaxis.set_ticklabels(["0.0", "2.5", "5.0", "7.5", "10.0", "12.5", "15.0", "17.5"])
 fig.text(
-    ax5.get_position().get_points()[0, 0] - 0.04,
+    ax5.get_position().get_points()[0, 0] - 0.042,
     ax5.get_position().get_points()[1, 1] - 0.025,
     r"$\times 10^{-4}$",
     color=die_color,
@@ -199,8 +199,8 @@ ax7.tick_params(axis="y", which="both", colors=die_color)
 ax7.yaxis.set_ticks([0, 0.0001, 0.0002, 0.0003, 0.0004, 0.0005, 0.0006])
 ax7.yaxis.set_ticklabels(["0.0", "1.0", "2.0", "3.0", "4.0", "5.0", "6.0"])
 fig.text(
-    ax7.get_position().get_points()[0, 0] - 0.04,
-    ax7.get_position().get_points()[1, 1] - 0.025,
+    ax7.get_position().get_points()[0, 0] - 0.042,
+    ax7.get_position().get_points()[1, 1] - 0.03,
     r"$\times 10^{-4}$",
     color=die_color,
 )
@@ -215,7 +215,7 @@ ax8.yaxis.set_ticks([0, 0.02, 0.04, 0.06, 0.08, 0.1])
 ax8.yaxis.set_ticklabels(["0.0", "2.0", "4.0", "6.0", "8.0", "10.0"])
 fig.text(
     ax8.get_position().get_points()[1, 0] + 0.005,
-    ax8.get_position().get_points()[1, 1] - 0.025,
+    ax8.get_position().get_points()[1, 1] - 0.03,
     r"$\times 10^{-2}$",
     color=pol_color,
 )
@@ -231,5 +231,5 @@ ax7.legend(
     loc="lower left",
 )
 
-plt.show()
-# plt.savefig("fig.pdf")
+#plt.show()
+plt.savefig("hyperparams.pdf")
