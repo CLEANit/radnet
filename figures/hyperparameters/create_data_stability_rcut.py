@@ -84,6 +84,8 @@ def main(args):
         "5.5",
         "6.0",
         "6.5",
+        "7.0",
+        "8.0",
     ]
     script_dir = os.path.dirname(__file__)
     base_command = (

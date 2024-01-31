@@ -110,8 +110,6 @@ class HDF5Dataset(torch.utils.data.Dataset):
         self._load_data()
 
         self.augmentation = augmentation
-        if self.augmentation:
-            self._prepare_augmentations()
 
         self.normalize = normalize
         if self.normalize:
@@ -144,6 +142,9 @@ class HDF5Dataset(torch.utils.data.Dataset):
             raise RuntimeError(
                 f"The output target shape {self.n_outputs} is not recognized."
             )
+        if self.n_outputs == 6:
+            for datapoint in self.data:
+                datapoint["target_tensor"] = target_to_tensor(datapoint["target"])
 
     def _initial_normalization(self, normalize_mode):
         if normalize_mode == "data":
@@ -160,7 +161,14 @@ class HDF5Dataset(torch.utils.data.Dataset):
                     maxs = np.array([maxval, maxval, maxval])
                     mins = np.array([-maxval, -maxval, -maxval])
                 elif self.n_outputs == 6:
-                    raise NotImplementedError()
+                    values = []
+                    for elem in self.data:
+                        elem = self._augment_data(elem)
+                        values.append(elem["target"])
+                    values = np.array(values)
+                    mins = values.min(0)
+                    maxs = values.max(0)
+                    pass
 
             print("INFO from normalization:")
             print("mins:", mins)
@@ -210,46 +218,32 @@ class HDF5Dataset(torch.utils.data.Dataset):
             datapoint = self._normalize_data(datapoint)
         return datapoint
 
-    def _prepare_augmentations(self):
-        def x_rotation(theta):
-            return np.array(
-                [
-                    [1, 0, 0],
-                    [0, np.cos(theta), -np.sin(theta)],
-                    [0, np.sin(theta), np.cos(theta)],
-                ]
-            )
+    def _get_random_3D_rotation_matrix(self):
+        r"Algorithm from James Avro, https://doi.org/10.1016/B978-0-08-050755-2.50034-8"
 
-        def y_rotation(theta):
-            return np.array(
-                [
-                    [np.cos(theta), 0, np.sin(theta)],
-                    [0, 1, 0],
-                    [-np.sin(theta), 0, np.cos(theta)],
-                ]
-            )
+        def generate_random_z_axis_rotation():
+            R = np.eye(3)
+            x1 = np.random.rand()
+            R[0, 0] = R[1, 1] = np.cos(2 * np.pi * x1)
+            R[0, 1] = -np.sin(2 * np.pi * x1)
+            R[1, 0] = np.sin(2 * np.pi * x1)
+            return R
 
-        def z_rotation(theta):
-            return np.array(
-                [
-                    [np.cos(theta), -np.sin(theta), 0],
-                    [np.sin(theta), np.cos(theta), 0],
-                    [0, 0, 1],
-                ]
-            )
+        x2 = 2 * np.pi * np.random.rand()
+        x3 = np.random.rand()
 
-        self.possible_rotations = [x_rotation, y_rotation, z_rotation]
-
-        if self.n_outputs == 6:
-            for datapoint in self.data:
-                datapoint["target_tensor"] = target_to_tensor(datapoint["target"])
+        R = generate_random_z_axis_rotation()
+        v = np.array(
+            [np.cos(x2) * np.sqrt(x3), np.sin(x2) * np.sqrt(x3), np.sqrt(1 - x3)]
+        )
+        H = np.eye(3) - (2 * np.outer(v, v))
+        M = -(H @ R)
+        return M
 
     def _augment_data(self, datapoint):
         cell = Cell(datapoint["cell"])
         scaled_positions = cell.scaled_positions(datapoint["coordinates"])
-        rotation_matrix = self.possible_rotations[np.random.randint(3)](
-            2 * np.pi * np.random.rand()
-        )
+        rotation_matrix = self._get_random_3D_rotation_matrix()
         rotated_cell = cell.array @ rotation_matrix.T
         datapoint["cell"] = rotated_cell
         datapoint["coordinates"] = scaled_positions @ rotated_cell
