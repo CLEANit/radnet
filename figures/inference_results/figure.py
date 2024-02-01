@@ -69,12 +69,18 @@ gs = fig.add_gridspec(
     bottom=0.07,
 )
 
-fig.text(0.01, 0.93, "a)", fontsize=30)
 ax1 = fig.add_subplot(gs[1:4, 1])
 ax1.grid(linestyle="-.")
 ax1.set_ylabel("Test MAE")
 ax1.set_xlabel("Dataset size")
 
+fig.text(
+    ax1.get_position().get_points()[0, 0] + 0.007,
+    ax1.get_position().get_points()[1, 1] - 0.03,
+    "a.",
+    color="k",
+    fontsize=25,
+)
 
 cbax1 = plt.subplot(gs[1, 7])
 cbax2 = plt.subplot(gs[3, 7])
@@ -114,6 +120,13 @@ ax22.plot(
     c="gray",
 )
 ax22.tick_params(axis="both", labelsize=10)
+fig.text(
+    ax2.get_position().get_points()[0, 0] + 0.007,
+    ax2.get_position().get_points()[1, 1] - 0.035,
+    "b.",
+    color="k",
+    fontsize=22,
+)
 
 ax3 = fig.add_subplot(gs[1, 5])
 ax3.grid(linestyle="-.")
@@ -127,7 +140,7 @@ im3 = ax3.scatter(
 )
 im3.set_cmap(cm.haline_r)
 im3.set_clim(0, pol_max)
-ax3.set_ylim([0, GaAs_pol_error_norms.max() * 3])
+ax3.set_ylim([0, GaAs_pol_error_norms.max() * 3.1])
 
 ax32 = inset_axes(ax3, width="55%", height="50%")
 ax32.scatter(
@@ -143,6 +156,13 @@ ax32.plot(
     c="gray",
 )
 ax32.tick_params(axis="both", labelsize=10)
+fig.text(
+    ax3.get_position().get_points()[0, 0] + 0.007,
+    ax3.get_position().get_points()[1, 1] - 0.035,
+    "c.",
+    color="k",
+    fontsize=22,
+)
 
 ax4 = fig.add_subplot(gs[3, 3])
 ax4.grid(linestyle="-.")
@@ -176,6 +196,13 @@ ax42.plot(
     c="gray",
 )
 ax42.tick_params(axis="both", labelsize=10)
+fig.text(
+    ax4.get_position().get_points()[0, 0] + 0.007,
+    ax4.get_position().get_points()[1, 1] - 0.035,
+    "d.",
+    color="k",
+    fontsize=22,
+)
 
 ax5 = fig.add_subplot(gs[3, 5])
 ax5.grid(linestyle="-.")
@@ -209,6 +236,13 @@ ax52.plot(
     c="gray",
 )
 ax52.tick_params(axis="both", labelsize=10)
+fig.text(
+    ax5.get_position().get_points()[0, 0] + 0.007,
+    ax5.get_position().get_points()[1, 1] - 0.035,
+    "e.",
+    color="k",
+    fontsize=22,
+)
 
-plt.show()
-# plt.savefig("fig.pdf")
+# plt.show()
+plt.savefig("test.pdf")

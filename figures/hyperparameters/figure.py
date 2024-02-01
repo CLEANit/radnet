@@ -66,7 +66,7 @@ plt.rcParams["axes.formatter.limits"] = (0, 0)
 pol_color = "#1b7837"
 die_color = "#b35900"
 
-fig = plt.figure(figsize=(16, 10))
+fig = plt.figure(figsize=(16, 9))
 gs = fig.add_gridspec(
     nrows=2,
     ncols=2,
@@ -96,8 +96,14 @@ ax2.tick_params(axis="y", which="both", colors=pol2[0].get_color())
 ax2.spines["right"].set_edgecolor(pol_color)
 ax2.spines["left"].set_edgecolor(die_color)
 ax2.set_ylim([7e-7, 2.2e-4])
+fig.text(
+    ax1.get_position().get_points()[0, 0] + 0.007,
+    ax1.get_position().get_points()[1, 1] - 0.025,
+    "a.",
+    color="k",
+)
 
-ax1.legend([die1, pol2], [r"Dielectric ($\epsilon_0$)", "Polarization ($e/a.u.^2$)"])
+ax1.legend([die1, pol2], [r"Dielectric ($\epsilon_0$)", "Polarization ($e/a.u.^2$)"], loc="upper center")
 
 
 ax3 = fig.add_subplot(gs[0, 1])
@@ -108,6 +114,7 @@ die3 = ax3.errorbar(
     shapes, inf_die_shape_means, yerr=inf_die_shape_stds, color=die_color
 )
 ax3.set_ylim([0, 7e-4])
+ax3.set_xlim([5.2, None])
 ax3.yaxis.set_ticks([0, 1e-4, 2e-4, 3e-4, 4e-4, 5e-4, 6e-4])
 ax3.yaxis.set_ticklabels(["0.0", "1.0", "2.0", "3.0", "4.0", "5.0", "6.0"])
 ax3.tick_params(axis="y", which="both", colors=die_color)
@@ -116,6 +123,12 @@ fig.text(
     ax3.get_position().get_points()[1, 1] - 0.025,
     r"$\times 10^{-4}$",
     color=die3[0].get_color(),
+)
+fig.text(
+    ax3.get_position().get_points()[0, 0] + 0.007,
+    ax3.get_position().get_points()[1, 1] - 0.025,
+    "b.",
+    color="k",
 )
 
 ax4 = ax3.twinx()
@@ -140,7 +153,7 @@ ax4.tick_params(axis="y", which="both", colors=pol4[0].get_color())
 ax3.legend(
     [die3, pol4],
     [r"Dielectric ($\epsilon_0$)", "Polarization ($e/a.u.^2$)"],
-    loc="upper left",
+    loc="upper center",
 )
 
 ax5 = fig.add_subplot(gs[1, 0])
@@ -178,6 +191,12 @@ fig.text(
     r"$\times 10^{-2}$",
     color=pol_color,
 )
+fig.text(
+    ax5.get_position().get_points()[0, 0] + 0.007,
+    ax5.get_position().get_points()[1, 1] - 0.025,
+    "c.",
+    color="k",
+)
 ax6.tick_params(axis="y", which="both", colors=pol_color)
 ax6.yaxis.label.set_color(pol_color)
 ax5.legend(
@@ -205,6 +224,12 @@ fig.text(
     ax7.get_position().get_points()[1, 1] - 0.03,
     r"$\times 10^{-4}$",
     color=die_color,
+)
+fig.text(
+    ax7.get_position().get_points()[0, 0] + 0.007,
+    ax7.get_position().get_points()[1, 1] - 0.025,
+    "d.",
+    color="k",
 )
 
 ax8 = ax7.twinx()
