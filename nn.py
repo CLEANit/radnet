@@ -188,6 +188,5 @@ class RadNet(torch.nn.Module):
         filtered_ems = self._apply_filter(ems)
 
         inter_outs = self.model(filtered_ems.unsqueeze(1))
-        unique_indices = torch.unique(index)
         outs = scatter(inter_outs, index, dim=0, reduce="add")
         return outs

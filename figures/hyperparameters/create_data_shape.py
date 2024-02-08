@@ -63,9 +63,11 @@ def main(args):
 
     all_maes, all_rmses = [], []
     for shape in shapes:
+        print(shape)
         all_maes.append([])
         all_rmses.append([])
         for i in range(1, n_models + 1):
+            print(i)
             model_dir = args.saved_model_dir + f"{shape}/{i}/"
             os.chdir(model_dir)
 
