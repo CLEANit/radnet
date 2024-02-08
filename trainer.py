@@ -95,6 +95,12 @@ parser.add_argument(
     type=int,
     help="Only used in augmented trainings. Number of times the validation data is evaluated in each epoch.",
 )
+parser.add_argument(
+    "--checkpoint_interval",
+    default=5,
+    type=int,
+    help="Write checkpoint file every X epochs.",
+)
 
 
 # Execute parse_args()
@@ -296,10 +302,13 @@ for epoch_num in range(starting_epoch, max_epochs):
     else:
         stopping_counter += 1
 
-    checkpoint(epoch_num, best_loss, stopping_counter, name=f"ckpt_{epoch_num}.torch")
+    if epoch_num % args.checkpoint_interval == 0:
+        checkpoint(
+            epoch_num, best_loss, stopping_counter, name=f"ckpt_{epoch_num}.torch"
+        )
 
     try:
-        os.remove(f"ckpt_{epoch_num - 1}.torch")
+        os.remove(f"ckpt_{epoch_num - args.checkpoint_interval}.torch")
     except:
         pass
 
