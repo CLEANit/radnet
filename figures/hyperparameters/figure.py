@@ -66,14 +66,14 @@ plt.rcParams["axes.formatter.limits"] = (0, 0)
 pol_color = "#1b7837"
 die_color = "#b35900"
 
-fig = plt.figure(figsize=(16, 9))
+fig = plt.figure(figsize=(16, 8.5))
 gs = fig.add_gridspec(
     nrows=2,
     ncols=2,
     left=0.06,
     right=0.94,
-    top=0.955,
-    bottom=0.07,
+    top=0.965,
+    bottom=0.075,
     hspace=0.0,
     wspace=0.22,
 )
@@ -81,7 +81,7 @@ gs = fig.add_gridspec(
 ax1 = fig.add_subplot(gs[0, 0])
 ax2 = ax1.twinx()
 
-ax1.set_title("Cutoff Results", fontsize=25)
+ax1.set_title("Cut-off Tuning", fontsize=20)
 ax1.grid(linestyle="-.")
 die1 = ax1.errorbar(rcuts, inf_die_rcut_means, yerr=inf_die_rcut_stds, color=die_color)
 ax1.set_ylabel("Validation MAE")
@@ -109,7 +109,7 @@ ax1.legend(
 
 
 ax3 = fig.add_subplot(gs[0, 1])
-ax3.set_title("Grid Shape Results", fontsize=25)
+ax3.set_title("Grid Shape Tuning", fontsize=20)
 ax3.grid(linestyle="-.")
 ax3.xaxis.set_ticks([6, 9, 12, 15, 18])
 die3 = ax3.errorbar(
@@ -166,7 +166,7 @@ sus5 = ax5.plot(
 )
 ax5.grid(linestyle="-.")
 ax5.set_ylim([0, None])
-ax5.set_xlabel("Cutoff radius (\AA)")
+ax5.set_xlabel("Cut-off radius (\AA)")
 ax5.set_ylabel("Derivatives STD")
 ax5.set_xlim(ax1.get_xlim())
 ax5.tick_params(axis="y", which="both", colors=die_color)
@@ -223,7 +223,7 @@ ax7.yaxis.set_ticks([0, 0.0001, 0.0002, 0.0003, 0.0004, 0.0005, 0.0006])
 ax7.yaxis.set_ticklabels(["0.0", "1.0", "2.0", "3.0", "4.0", "5.0", "6.0"])
 fig.text(
     ax7.get_position().get_points()[0, 0] - 0.042,
-    ax7.get_position().get_points()[1, 1] - 0.03,
+    ax7.get_position().get_points()[1, 1] - 0.035,
     r"$\times 10^{-4}$",
     color=die_color,
 )
