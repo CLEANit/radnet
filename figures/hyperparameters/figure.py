@@ -5,14 +5,14 @@ import pickle
 
 
 data_dir = "data"
-inference_pol_rcut_path = os.path.join(data_dir, "BN_pol_inference_1.5_6.5.pkl")
+inference_pol_rcut_path = os.path.join(data_dir, "BN_pol_inference_1.5_8.0.pkl")
 inference_die_rcut_path = os.path.join(data_dir, "BN_die_inference_1.5_8.0.pkl")
 inference_pol_shape_path = os.path.join(data_dir, "BN_pol_inference_6_18.pkl")
-inference_die_shape_path = os.path.join(data_dir, "BN_die_inference_6_18_temp.pkl")
-rcut_effch_data_path = os.path.join(data_dir, "BN_effch_1.5_6.5.npy")
+inference_die_shape_path = os.path.join(data_dir, "BN_die_inference_6_18.pkl")
+rcut_effch_data_path = os.path.join(data_dir, "BN_effch_1.5_8.0.npy")
 rcut_suscept_data_path = os.path.join(data_dir, "BN_suscept_1.5_8.0.npy")
 shape_effch_data_path = os.path.join(data_dir, "BN_effch_6_18.npy")
-shape_suscept_data_path = os.path.join(data_dir, "BN_suscept_6_18_temp.npy")
+shape_suscept_data_path = os.path.join(data_dir, "BN_suscept_6_18.npy")
 
 rcut_effch_data = np.load(rcut_effch_data_path)
 rcut_suscept_data = np.load(rcut_suscept_data_path)
@@ -88,9 +88,7 @@ ax1.set_ylabel("Validation MAE")
 ax1.set_yscale("log")
 ax1.tick_params(axis="y", which="both", colors=die1[0].get_color())
 
-pol2 = ax2.errorbar(
-    rcuts[:-2], inf_pol_rcut_means, yerr=inf_pol_rcut_stds, color=pol_color
-)
+pol2 = ax2.errorbar(rcuts, inf_pol_rcut_means, yerr=inf_pol_rcut_stds, color=pol_color)
 ax2.set_yscale("log")
 ax2.tick_params(axis="y", which="both", colors=pol2[0].get_color())
 ax2.spines["right"].set_edgecolor(pol_color)
@@ -103,7 +101,11 @@ fig.text(
     color="k",
 )
 
-ax1.legend([die1, pol2], [r"Dielectric ($\epsilon_0$)", "Polarization ($e/a.u.^2$)"], loc="upper center")
+ax1.legend(
+    [die1, pol2],
+    [r"Dielectric ($\epsilon_0$)", "Polarization ($e/a.u.^2$)"],
+    loc="upper center",
+)
 
 
 ax3 = fig.add_subplot(gs[0, 1])
@@ -179,7 +181,7 @@ fig.text(
 
 
 ax6 = ax5.twinx()
-eff6 = ax6.plot(rcuts[1:-2], rcut_effch_stds, color=pol_color)
+eff6 = ax6.plot(rcuts[1:], rcut_effch_stds, color=pol_color)
 ax6.set_ylim([0, None])
 ax6.yaxis.set_ticks([0, 0.005, 0.01, 0.015, 0.02, 0.025, 0.03, 0.035])
 ax6.yaxis.set_ticklabels(["0.0", "0.5", "1.0", "1.5", "2.0", "2.5", "3.0", "3.5"])
