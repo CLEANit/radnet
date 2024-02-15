@@ -53,8 +53,8 @@ def main(args):
     os.chdir(args.saved_model_dir)
 
     for material in ["BN", "GaAs"]:
-        rcut = 4.0 if material == "BN" else 6.5  # à ajuster
-        image_shape = (15, 15, 15) if material == "BN" else (25, 25, 25)  # à ajuster
+        rcut = 4.5 if material == "BN" else 7.0
+        image_shape = (12, 12, 12) if material == "BN" else (15, 15, 15)
         for prop in ["polarization", "dielectric"]:
             n_outputs = 3 if prop == "polarization" else 6
 

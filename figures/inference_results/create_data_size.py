@@ -85,12 +85,14 @@ def main(args):
 
     all_maes, all_rmses = [], []
     for size in sizes:
+        print(size)
         all_maes.append([])
         all_rmses.append([])
         dataset_path = os.path.join(
             args.datadir, f"{args.material}_test_100_{args.property}.h5"
         )
         for i in range(1, n_models + 1):
+            print(i)
             model_dir = args.saved_model_dir + f"{size}/{i}/"
             os.chdir(model_dir)
 
