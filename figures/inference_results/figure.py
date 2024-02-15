@@ -8,15 +8,21 @@ from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
 data_dir = "data"
 detailed_data_path = os.path.join(data_dir, "temp_detailed_inference.pkl")
+size_BN_pol_path = os.path.join(data_dir, "BN_pol_sizes.pkl")
+size_BN_die_path = os.path.join(data_dir, "BN_die_sizes.pkl")
 
 with open(detailed_data_path, "rb") as f:
     detailed_data = pickle.load(f)
+
+with open(size_BN_pol_path, "rb") as f:
+    size_BN_pol_data = pickle.load(f)["maes"]
+with open(size_BN_die_path, "rb") as f:
+    size_BN_die_data = pickle.load(f)["maes"]
 
 font = {"family": "CMU Serif", "size": 18}
 plt.rc("font", **font)
 plt.rc("text", usetex=True)
 plt.rc("text.latex", preamble=r"\usepackage{bm}")
-# plt.rcParams["axes.formatter.limits"] = (0, 0)
 
 BN_pol_trues = detailed_data["BN_polarization_trues"]
 BN_pol_preds = detailed_data["BN_polarization_preds"]
@@ -54,6 +60,8 @@ GaAs_die_relative_errors = GaAs_die_error_norms / GaAs_die_true_norms
 pol_max = max(BN_pol_relative_errors.max(), GaAs_pol_relative_errors.max())
 die_max = max(BN_die_relative_errors.max(), GaAs_die_relative_errors.max())
 
+BN_color = "#1b7837"
+gaas_color = "#b35900"
 
 fig = plt.figure(figsize=(16, 8))
 gs = fig.add_gridspec(
@@ -69,10 +77,33 @@ gs = fig.add_gridspec(
     bottom=0.07,
 )
 
+sizes = [100, 250, 500, 900]
+
 ax1 = fig.add_subplot(gs[1:4, 1])
 ax1.grid(linestyle="-.")
 ax1.set_ylabel("Test MAE")
 ax1.set_xlabel("Dataset size")
+ax1.set_yscale("log")
+ax1.set_xscale("log")
+ax1.errorbar(
+    sizes,
+    np.mean(size_BN_die_data, axis=1),
+    yerr=np.std(size_BN_die_data, axis=1),
+    label="BN dielectric",
+    color=BN_color,
+    ls="-",
+)
+ax1.errorbar(
+    sizes,
+    np.mean(size_BN_pol_data, axis=1),
+    yerr=np.std(size_BN_pol_data, axis=1),
+    label="BN polarization",
+    color=BN_color,
+    ls="-.",
+)
+ax1.xaxis.set_ticks(sizes)
+ax1.xaxis.set_ticklabels(["100", "250", "500", "900"])
+ax1.legend()
 
 fig.text(
     ax1.get_position().get_points()[0, 0] + 0.007,
@@ -244,5 +275,5 @@ fig.text(
     fontsize=22,
 )
 
-# plt.show()
-plt.savefig("test.pdf")
+plt.show()
+# plt.savefig("test.pdf")
