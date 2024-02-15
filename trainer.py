@@ -307,10 +307,10 @@ for epoch_num in range(starting_epoch, max_epochs):
             epoch_num, best_loss, stopping_counter, name=f"ckpt_{epoch_num}.torch"
         )
 
-    try:
-        os.remove(f"ckpt_{epoch_num - args.checkpoint_interval}.torch")
-    except:
-        pass
+        try:
+            os.remove(f"ckpt_{epoch_num - args.checkpoint_interval}.torch")
+        except:
+            pass
 
     print(
         f"-- epoch: {epoch_num} | train_loss: {avg_train_loss} | validation_loss: {avg_validation_loss}"
