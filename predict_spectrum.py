@@ -103,10 +103,10 @@ def get_loto_splitting(
     )
     error = loto - (gamma_eigenenergies[-1] - gamma_eigenenergies[-2])
 
-    ml_eigenenergies = eigenenergies
-    ml_eigenenergies[gamma_modes_idx][-1] = ml_eigenenergies[gamma_modes_idx][
-        -2
-    ] + np.mean(loto)
+    ml_eigenenergies = eigenenergies.copy()
+    gamma_eigen = ml_eigenenergies[gamma_modes_idx]
+    gamma_eigen[-1] = gamma_eigen[-2] + np.mean(loto)
+    ml_eigenenergies[gamma_modes_idx] = gamma_eigen
 
     return loto, error, ml_eigenenergies
 
@@ -146,7 +146,7 @@ def get_raman_intensities(
     omega_I = 18796.9987  # in cm^-1 for 532 nm laser
     Gamma = 10  # broadening in cm^-1
     c = 137.0359997566  # in A.U.
-    omega_min, omega_max = 100, np.max(eigenenergies) + 100
+    omega_min, omega_max = 100, 1500
     omegas = np.linspace(omega_min, omega_max, 2000)
     C_array = np.zeros((nmodes, len(omegas)))
 

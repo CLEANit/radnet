@@ -304,7 +304,7 @@ def main(args):
             print("Raman tensor:")
             print(raman_tensor)
             if args.save_results:
-                np.save("raman_tensor.npy", raman_tensor.detach().cpu().numpy())
+                np.save("raman_tensor.npy", raman_tensor)
 
 
 if __name__ == "__main__":
