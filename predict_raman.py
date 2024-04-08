@@ -52,6 +52,12 @@ def build_parser():
         help="max number of neighbors when constructing images",
     )
     parser.add_argument(
+        "--biased_model",
+        action="store_true",
+        default=False,
+        help="Biased models to learn rotations.",
+    )
+    parser.add_argument(
         "--saved_model_path",
         type=str,
         default="best.torch",
@@ -109,7 +115,6 @@ def create_dataset(args, atoms):
         "temp.h5",
         normalize=True,
         normalize_mode="file",
-        augmentation=False,
     )
     os.remove("temp.h5")
     return dataset
@@ -138,6 +143,7 @@ def get_model(args, dataset, device):
         n_outputs=args.n_outputs,
         atom_types=dataset.unique_atomic_numbers(),
         cutoff_filter=args.filter,
+        biased_filters=args.biased_model,
         device=device,
     ).to(device)
     return model

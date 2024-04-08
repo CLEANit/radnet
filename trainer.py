@@ -41,7 +41,7 @@ parser.add_argument(
     help="image sizes used to represent chemical environments",
 )
 parser.add_argument(
-    "--sigma", type=float, default=1.0, help="sigma value used for the gaussians"
+    "--sigma", type=float, default=0.5, help="sigma value used for the gaussians"
 )
 parser.add_argument(
     "--learning_rate", type=float, default=1e-4, help="learning rate used in training"
@@ -87,7 +87,16 @@ parser.add_argument(
 )
 parser.add_argument("--weight_decay", type=float, default=0, help="Weight decay.")
 parser.add_argument(
-    "--augmentation", action="store_true", help="Activates data augmentation"
+    "--augmentation_mode",
+    default=None,
+    choices=[None, "reflections", "rotations"],
+    help="Activates data augmentation",
+)
+parser.add_argument(
+    "--biased_model",
+    action="store_true",
+    default=False,
+    help="Used biased models to learn rotations.",
 )
 parser.add_argument(
     "--n_augmented_val",
@@ -100,6 +109,12 @@ parser.add_argument(
     default=5,
     type=int,
     help="Write checkpoint file every X epochs.",
+)
+parser.add_argument(
+    "--reset_loss",
+    action="store_true",
+    default=False,
+    help="Resets best loss when restarting training.",
 )
 
 
@@ -119,7 +134,7 @@ if filename is None:
 batch_size = args.batch_size
 split_pct = args.split
 dataset = HDF5Dataset(
-    filename, sample_frac=args.sample_frac, augmentation=args.augmentation
+    filename, sample_frac=args.sample_frac, augmentation_mode=args.augmentation_mode
 )
 n_training = int(len(dataset) * split_pct)
 n_validation = len(dataset) - n_training
@@ -135,6 +150,8 @@ model = RadNet(
     n_outputs=args.n_outputs,
     atom_types=dataset.unique_atomic_numbers(),
     cutoff_filter=args.filter,
+    biased_filters=args.biased_model,
+    bias_cell_lims=dataset.bias_cell_lims,
     device=device,
 ).to(device)
 
@@ -171,6 +188,7 @@ def train_loop():
         losses.append(loss.detach().cpu().numpy())
         loss.backward()
         optimizer.step()
+        # print(model.bias_min, model.bias_max)
         print(f"---- batch: {i} | loss: {loss.item()} ----")
     return np.mean(losses)
 
@@ -234,11 +252,15 @@ if checkpoint_files:
     print("Found checkpoint file, continuing training")
     checkpoint_data = torch.load(checkpoint_files[0], map_location=device)
     model.load_state_dict(checkpoint_data["model_state_dict"])
-    optimizer.load_state_dict(checkpoint_data["optimizer_state_dict"])
-    scheduler.load_state_dict(checkpoint_data["scheduler"])
     starting_epoch = checkpoint_data["epoch"]
-    best_loss = checkpoint_data["best_loss"]
-    stopping_counter = checkpoint_data["stopping_counter"]
+
+    if args.reset_loss:
+        best_loss, stopping_counter = np.inf, 0
+    else:
+        optimizer.load_state_dict(checkpoint_data["optimizer_state_dict"])
+        scheduler.load_state_dict(checkpoint_data["scheduler"])
+        best_loss = checkpoint_data["best_loss"]
+        stopping_counter = checkpoint_data["stopping_counter"]
 
     with open(args.idx_savepath, "rb") as f:
         idx_dict = pickle.load(f)
@@ -287,7 +309,7 @@ validation_loader = torch.utils.data.DataLoader(
 # Training
 for epoch_num in range(starting_epoch, max_epochs):
     avg_train_loss = train_loop()
-    if args.augmentation:
+    if args.augmentation_mode:
         avg_validation_loss = validation_loop(epoch_num, args.n_augmented_val)
     else:
         avg_validation_loss = validation_loop(epoch_num, 1)

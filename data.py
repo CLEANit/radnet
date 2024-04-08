@@ -102,14 +102,15 @@ class HDF5Dataset(torch.utils.data.Dataset):
         filename,
         normalize=True,
         normalize_mode="data",
-        augmentation=False,
+        augmentation_mode=None,
         sample_frac=1,
     ):
         self.filename = filename
         self.sample_frac = sample_frac
         self._load_data()
 
-        self.augmentation = augmentation
+        assert augmentation_mode in [None, "reflections", "rotations"]
+        self.augmentation_mode = augmentation_mode
 
         self.normalize = normalize
         if self.normalize:
@@ -146,6 +147,12 @@ class HDF5Dataset(torch.utils.data.Dataset):
             for datapoint in self.data:
                 datapoint["target_tensor"] = target_to_tensor(datapoint["target"])
 
+        # To implement differently for varying cell sizes
+        example_cell = self.data[0]["cell"]
+
+        max_cell_dim = np.max(np.sum(np.abs(example_cell), axis=0))
+        self.bias_cell_lims = (-max_cell_dim, max_cell_dim)
+
     def _initial_normalization(self, normalize_mode):
         if normalize_mode == "data":
             vals = []
@@ -155,7 +162,12 @@ class HDF5Dataset(torch.utils.data.Dataset):
             vals = np.array(vals)
             mins = vals.min(0)
             maxs = vals.max(0)
-            if self.augmentation:
+
+            for i, (min_val, max_val) in enumerate(zip(mins, maxs)):
+                if min_val == max_val:
+                    mins[i], maxs[i] = mins[i] - 0.01, maxs[i] + 0.01
+
+            if self.augmentation_mode:
                 if self.n_outputs == 3:
                     maxval = max(np.absolute(maxs).max(), np.absolute(mins).max())
                     maxs = np.array([maxval, maxval, maxval])
@@ -212,7 +224,7 @@ class HDF5Dataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx):
         datapoint = self.data[idx].copy()
-        if self.augmentation:
+        if self.augmentation_mode:
             datapoint = self._augment_data(datapoint)
         if self.normalize:
             datapoint = self._normalize_data(datapoint)
@@ -221,23 +233,30 @@ class HDF5Dataset(torch.utils.data.Dataset):
     def _get_random_3D_rotation_matrix(self):
         r"Algorithm from James Avro, https://doi.org/10.1016/B978-0-08-050755-2.50034-8"
 
-        def generate_random_z_axis_rotation():
-            R = np.eye(3)
-            x1 = np.random.rand()
-            R[0, 0] = R[1, 1] = np.cos(2 * np.pi * x1)
-            R[0, 1] = -np.sin(2 * np.pi * x1)
-            R[1, 0] = np.sin(2 * np.pi * x1)
-            return R
+        if self.augmentation_mode == "rotations":
 
-        x2 = 2 * np.pi * np.random.rand()
-        x3 = np.random.rand()
+            def generate_random_z_axis_rotation():
+                R = np.eye(3)
+                x1 = np.random.rand()
+                R[0, 0] = R[1, 1] = np.cos(2 * np.pi * x1)
+                R[0, 1] = -np.sin(2 * np.pi * x1)
+                R[1, 0] = np.sin(2 * np.pi * x1)
+                return R
 
-        R = generate_random_z_axis_rotation()
-        v = np.array(
-            [np.cos(x2) * np.sqrt(x3), np.sin(x2) * np.sqrt(x3), np.sqrt(1 - x3)]
-        )
-        H = np.eye(3) - (2 * np.outer(v, v))
-        M = -(H @ R)
+            x2 = 2 * np.pi * np.random.rand()
+            x3 = np.random.rand()
+
+            R = generate_random_z_axis_rotation()
+            v = np.array(
+                [np.cos(x2) * np.sqrt(x3), np.sin(x2) * np.sqrt(x3), np.sqrt(1 - x3)]
+            )
+            H = np.eye(3) - (2 * np.outer(v, v))
+            M = -(H @ R)
+
+        elif self.augmentation_mode == "reflections":
+            # Version reflections in all directions
+            diag = (np.random.rand(3) - 0.5 < 0).astype(int) * 2 - 1
+            M = np.eye(3) * diag
         return M
 
     def _augment_data(self, datapoint):

@@ -129,6 +129,7 @@ model = RadNet(
     n_outputs=args.n_outputs,
     atom_types=dataset.unique_atomic_numbers(),
     cutoff_filter=args.filter,
+    bias_cell_lims=dataset.bias_cell_lims,
     device=device,
 ).to(device)
 

@@ -33,11 +33,13 @@ class RadNet(torch.nn.Module):
     def __init__(
         self,
         cut_off=1.852 / 2,
-        shape=(27, 27, 27),
+        shape=(15, 15, 15),
         sigma=0.2,
         n_outputs=6,
         atom_types=None,
         cutoff_filter="erfc",
+        biased_filters=False,
+        bias_cell_lims=None,
         device="cpu",
     ):
         super(RadNet, self).__init__()
@@ -53,13 +55,23 @@ class RadNet(torch.nn.Module):
         self.X = X.to(device)
         self.Y = Y.to(device)
         self.Z = Z.to(device)
+
+        self.biased_filters = biased_filters
+        if self.biased_filters:
+            self.bias_cell_lims = bias_cell_lims
+            self.bias_min = 1.0
+            self.bias_max = 4.0
+            self.bias_slope = (self.bias_max - self.bias_min) / (
+                self.bias_cell_lims[1] - self.bias_cell_lims[0]
+            )
+
         self._setup_network()
 
         if atom_types is not None:
             test_images = torch.empty((len(atom_types),) + self.shape)
             for i, at in enumerate(atom_types):
-                dr = self.X ** 2 + self.Y ** 2 + self.Z ** 2
-                test_images[i] = at * torch.exp(-0.5 * dr / self.sigma ** 2)
+                dr = self.X**2 + self.Y**2 + self.Z**2
+                test_images[i] = at * torch.exp(-0.5 * dr / self.sigma**2)
             self.input_mean = torch.mean(test_images).to(device)
             self.input_std = torch.std(test_images).to(device)
             self.input_abs_max = torch.max(torch.abs(test_images)).to(device)
@@ -70,18 +82,22 @@ class RadNet(torch.nn.Module):
         ], f'You supplied a cutoff filter that is not implemented. Use "erfc" or "hard"'
 
         if cutoff_filter.lower() == "erfc":
-            self.filter = (
+            filters = (
                 torch.erfc(
-                    (self.X ** 2 + self.Y ** 2 + self.Z ** 2) ** 0.5 - self.cut_off
+                    (self.X**2 + self.Y**2 + self.Z**2) ** 0.5 - self.cut_off
                 )
                 / 2.0
             )
         elif cutoff_filter.lower() == "hard":
-            self.filter = torch.where(
-                (self.X ** 2 + self.Y ** 2 + self.Z ** 2) ** 0.5 < self.cut_off,
+            filters = torch.where(
+                (self.X**2 + self.Y**2 + self.Z**2) ** 0.5 < self.cut_off,
                 1.0,
                 0.0,
             )
+        if self.biased_filters:
+            self.cutoff_filter = filters
+        else:
+            self.filter = filters
 
     def _setup_network(self):
         layers = OrderedDict()
@@ -128,7 +144,6 @@ class RadNet(torch.nn.Module):
         self.model = torch.nn.Sequential(layers)
 
     def _get_distances(self, pos, neighbors, cell):
-
         # convert to scaled positions and handle PBCs
         scaled_pos = torch.linalg.solve(torch.transpose(cell, 1, 2), pos)
         scaled_neighbors = torch.transpose(
@@ -170,14 +185,47 @@ class RadNet(torch.nn.Module):
                 dr[:, 2].unsqueeze(-1) - torch.stack([self.Z.flatten()] * n_these_Rs)
             ) ** 2
             ems[i] = (
-                (Z[i] * torch.exp(-0.5 * (dx2 + dy2 + dz2) / (self.sigma ** 2)))
+                (Z[i] * torch.exp(-0.5 * (dx2 + dy2 + dz2) / (self.sigma**2)))
                 .sum(0)
                 .reshape(self.shape)
             )
         return ems
 
-    def _apply_filter(self, ims):
-        return self.filter * ims
+    def _get_bias_lims(self, pos):
+        cut_min, cut_max = pos - self.cut_off, pos + self.cut_off
+        lin_min = (cut_min - self.bias_cell_lims[0]) * self.bias_slope + self.bias_min
+        lin_max = (cut_max - self.bias_cell_lims[0]) * self.bias_slope + self.bias_min
+        return lin_min, lin_max
+
+    def _apply_filters(self, ems, bias_lims=None):
+        if self.biased_filters:
+            device = ems.device
+            bias_filters = [
+                torch.zeros_like(ems),
+                torch.zeros_like(ems),
+                torch.zeros_like(ems),
+            ]
+            for i, em in enumerate(ems):
+                biases = [
+                    torch.linspace(
+                        bias_lims[0][i][dim],
+                        bias_lims[1][i][dim],
+                        self.shape[dim],
+                        device=device,
+                    )
+                    for dim in range(3)
+                ]
+                grid_biases = torch.meshgrid(
+                    biases[0], biases[1], biases[2], indexing="ij"
+                )
+                for dim in range(3):
+                    bias_filters[dim][i] = grid_biases[dim]
+
+            combined_filters = torch.mean(torch.stack(bias_filters), dim=0)
+
+            return self.cutoff_filter * combined_filters * ems
+        else:
+            return self.filter * ems
 
     def forward(self, pos, Z, neighbors, use_neighbors, index):
         ems = self._make_english_muffin(pos, Z, neighbors, use_neighbors)
@@ -185,7 +233,12 @@ class RadNet(torch.nn.Module):
             ems -= self.input_mean
             ems /= self.input_std
             ems /= self.input_abs_max
-        filtered_ems = self._apply_filter(ems)
+
+        if self.biased_filters:
+            bias_lims = self._get_bias_lims(pos)
+            filtered_ems = self._apply_filters(ems, bias_lims=bias_lims)
+        else:
+            filtered_ems = self._apply_filters(ems)
 
         inter_outs = self.model(filtered_ems.unsqueeze(1))
         outs = scatter(inter_outs, index, dim=0, reduce="add")
