@@ -4,36 +4,43 @@ import numpy as np
 from ase import Atoms, neighborlist
 from ase.cell import Cell
 import ase.neighborlist
+from radnet.utils import (
+    _make_float32,
+    target_to_tensor,
+    tensor_to_target,
+    generate_random_3D_rotation_matrix,
+)
 
 
-def _make_float32(samples):
-    for k, v in samples.items():
-        if v.dtype == torch.float64:
-            samples[k] = v.float()
-    return samples
-
-
-def target_to_tensor(target):
-    return np.array(
-        [
-            [target[0], target[1], target[2]],
-            [target[1], target[3], target[4]],
-            [target[2], target[4], target[5]],
-        ]
-    )
-
-
-def tensor_to_target(tensor):
-    return np.array(
-        [
-            tensor[0, 0],
-            tensor[0, 1],
-            tensor[0, 2],
-            tensor[1, 1],
-            tensor[1, 2],
-            tensor[2, 2],
-        ]
-    )
+# def _make_float32(samples):
+#    for k, v in samples.items():
+#        if v.dtype == torch.float64:
+#            samples[k] = v.float()
+#    return samples
+#
+#
+# def target_to_tensor(target):
+#    return np.array(
+#        [
+#            [target[0], target[1], target[2]],
+#            [target[1], target[3], target[4]],
+#            [target[2], target[4], target[5]],
+#        ]
+#    )
+#
+#
+# def tensor_to_target(tensor):
+#    return np.array(
+#        [
+#            tensor[0, 0],
+#            tensor[0, 1],
+#            tensor[0, 2],
+#            tensor[1, 1],
+#            tensor[1, 2],
+#            tensor[2, 2],
+#        ]
+#    )
+#
 
 
 def flatten(samples, cut_off, max_neighbors):
@@ -231,27 +238,25 @@ class HDF5Dataset(torch.utils.data.Dataset):
         return datapoint
 
     def _get_random_3D_rotation_matrix(self):
-        r"Algorithm from James Avro, https://doi.org/10.1016/B978-0-08-050755-2.50034-8"
-
         if self.augmentation_mode == "rotations":
+            M = generate_random_3D_rotation_matrix()
+            # def generate_random_z_axis_rotation():
+            #    R = np.eye(3)
+            #    x1 = np.random.rand()
+            #    R[0, 0] = R[1, 1] = np.cos(2 * np.pi * x1)
+            #    R[0, 1] = -np.sin(2 * np.pi * x1)
+            #    R[1, 0] = np.sin(2 * np.pi * x1)
+            #    return R
 
-            def generate_random_z_axis_rotation():
-                R = np.eye(3)
-                x1 = np.random.rand()
-                R[0, 0] = R[1, 1] = np.cos(2 * np.pi * x1)
-                R[0, 1] = -np.sin(2 * np.pi * x1)
-                R[1, 0] = np.sin(2 * np.pi * x1)
-                return R
+            # x2 = 2 * np.pi * np.random.rand()
+            # x3 = np.random.rand()
 
-            x2 = 2 * np.pi * np.random.rand()
-            x3 = np.random.rand()
-
-            R = generate_random_z_axis_rotation()
-            v = np.array(
-                [np.cos(x2) * np.sqrt(x3), np.sin(x2) * np.sqrt(x3), np.sqrt(1 - x3)]
-            )
-            H = np.eye(3) - (2 * np.outer(v, v))
-            M = -(H @ R)
+            # R = generate_random_z_axis_rotation()
+            # v = np.array(
+            #    [np.cos(x2) * np.sqrt(x3), np.sin(x2) * np.sqrt(x3), np.sqrt(1 - x3)]
+            # )
+            # H = np.eye(3) - (2 * np.outer(v, v))
+            # M = -(H @ R)
 
         elif self.augmentation_mode == "reflections":
             # Version reflections in all directions
@@ -262,7 +267,7 @@ class HDF5Dataset(torch.utils.data.Dataset):
     def _augment_data(self, datapoint):
         cell = Cell(datapoint["cell"])
         scaled_positions = cell.scaled_positions(datapoint["coordinates"])
-        rotation_matrix = self._get_random_3D_rotation_matrix()
+        rotation_matrix = self.get_3D_rotation_matrix()
         rotated_cell = cell.array @ rotation_matrix.T
         datapoint["cell"] = rotated_cell
         datapoint["coordinates"] = scaled_positions @ rotated_cell

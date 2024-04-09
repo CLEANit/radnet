@@ -1,32 +1,34 @@
 import torch
 from collections import OrderedDict
 from torch_scatter import scatter
+from radnet.utils import pbc_round, DeterministicLinear
 
 
-def pbc_round(input):
-    i = input.int()
-    bools = abs(input - i) >= 0.5
-    vals = torch.where(torch.logical_and(bools, input > 0), i + 1, i)
-    vals = torch.where(torch.logical_and(bools, input < 0), i - 1, i)
-    return vals
+# def pbc_round(input):
+#    i = input.int()
+#    bools = abs(input - i) >= 0.5
+#    vals = torch.where(torch.logical_and(bools, input > 0), i + 1, i)
+#    vals = torch.where(torch.logical_and(bools, input < 0), i - 1, i)
+#    return vals
 
 
 # Not sure why this is needed, but without it the Linear layers at the
 # end of the model returns different values for equivalent atoms when batch_size > 1
+# for some GPU configurations.
 # This seems to solve it for now.
-class DeterministicLinear(torch.nn.Linear):
-    def __init__(self, in_features, out_features, bias=True, device=None, dtype=None):
-        super().__init__(
-            in_features=in_features,
-            out_features=out_features,
-            bias=bias,
-            device=device,
-            dtype=dtype,
-        )
-
-    def forward(self, x):
-        y = torch.matmul(x, self.weight.T.unsqueeze(0))[0] + self.bias
-        return y
+# class DeterministicLinear(torch.nn.Linear):
+#    def __init__(self, in_features, out_features, bias=True, device=None, dtype=None):
+#        super().__init__(
+#            in_features=in_features,
+#            out_features=out_features,
+#            bias=bias,
+#            device=device,
+#            dtype=dtype,
+#        )
+#
+#    def forward(self, x):
+#        y = torch.matmul(x, self.weight.T.unsqueeze(0))[0] + self.bias
+#        return y
 
 
 class RadNet(torch.nn.Module):

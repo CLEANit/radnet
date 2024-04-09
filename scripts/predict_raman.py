@@ -1,8 +1,8 @@
 import torch
 import h5py
 import os
-from nn import RadNet
-from data import HDF5Dataset, collate_fn
+from radnet.nn import RadNet
+from radnet.data import HDF5Dataset, collate_fn
 from functools import partial
 import argparse
 import pickle
