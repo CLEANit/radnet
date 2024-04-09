@@ -12,37 +12,6 @@ from radnet.utils import (
 )
 
 
-# def _make_float32(samples):
-#    for k, v in samples.items():
-#        if v.dtype == torch.float64:
-#            samples[k] = v.float()
-#    return samples
-#
-#
-# def target_to_tensor(target):
-#    return np.array(
-#        [
-#            [target[0], target[1], target[2]],
-#            [target[1], target[3], target[4]],
-#            [target[2], target[4], target[5]],
-#        ]
-#    )
-#
-#
-# def tensor_to_target(tensor):
-#    return np.array(
-#        [
-#            tensor[0, 0],
-#            tensor[0, 1],
-#            tensor[0, 2],
-#            tensor[1, 1],
-#            tensor[1, 2],
-#            tensor[2, 2],
-#        ]
-#    )
-#
-
-
 def flatten(samples, cut_off, max_neighbors):
     return_dict = {}
     for k in samples[0]:
@@ -240,23 +209,6 @@ class HDF5Dataset(torch.utils.data.Dataset):
     def _get_random_3D_rotation_matrix(self):
         if self.augmentation_mode == "rotations":
             M = generate_random_3D_rotation_matrix()
-            # def generate_random_z_axis_rotation():
-            #    R = np.eye(3)
-            #    x1 = np.random.rand()
-            #    R[0, 0] = R[1, 1] = np.cos(2 * np.pi * x1)
-            #    R[0, 1] = -np.sin(2 * np.pi * x1)
-            #    R[1, 0] = np.sin(2 * np.pi * x1)
-            #    return R
-
-            # x2 = 2 * np.pi * np.random.rand()
-            # x3 = np.random.rand()
-
-            # R = generate_random_z_axis_rotation()
-            # v = np.array(
-            #    [np.cos(x2) * np.sqrt(x3), np.sin(x2) * np.sqrt(x3), np.sqrt(1 - x3)]
-            # )
-            # H = np.eye(3) - (2 * np.outer(v, v))
-            # M = -(H @ R)
 
         elif self.augmentation_mode == "reflections":
             # Version reflections in all directions
