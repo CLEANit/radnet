@@ -261,4 +261,4 @@ ax7.legend(
 )
 
 # plt.show()
-plt.savefig("hyperparams.pdf")
+plt.savefig("figure_hyperparams.eps")

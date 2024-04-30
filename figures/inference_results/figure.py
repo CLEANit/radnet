@@ -302,4 +302,4 @@ fig.text(
 )
 
 # plt.show()
-plt.savefig("figure_inference.pdf")
+plt.savefig("figure_inference.eps")
