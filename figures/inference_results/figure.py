@@ -77,7 +77,7 @@ gs = fig.add_gridspec(
     height_ratios=[0.1, 1, 0.3, 1, 0.06],
     hspace=0,
     wspace=0,
-    left=0.06,
+    left=0.05,
     right=0.93,
     top=0.97,
     bottom=0.07,
@@ -85,75 +85,56 @@ gs = fig.add_gridspec(
 
 sizes = [50, 100, 250, 500, 900]
 
-ax1 = fig.add_subplot(gs[1, 1])
+ax1 = fig.add_subplot(gs[1:4, 1])
+
+gaas_norm_pol_data = size_GaAs_pol_data / np.mean(size_GaAs_pol_data, axis=1)[0]
+bn_norm_pol_data = size_BN_pol_data / np.mean(size_BN_pol_data, axis=1)[0]
+gaas_norm_die_data = size_GaAs_die_data / np.mean(size_GaAs_die_data, axis=1)[0]
+bn_norm_die_data = size_BN_die_data / np.mean(size_BN_die_data, axis=1)[0]
+
 ax1.grid(linestyle="-.")
-ax1.set_ylabel(r"Test MAE $[me/a^{2}_0]$")
+ax1.set_ylabel("Relative MAE")
 ax1.set_xlabel("Dataset size")
 ax1.set_xscale("log")
-ax1.set_yscale("log")
-ax1.set_ylim([1e-6, 3.5e-3])
+ax1.set_ylim([0, 1.05])
 ax1.set_xlim([38, 1000])
-ax1.errorbar(
-    sizes[:-1],
-    np.mean(size_GaAs_pol_data, axis=1),
-    yerr=np.std(size_GaAs_pol_data, axis=1),
-    label="GaAs polarization",
-    color=gaas_color,
-    ls="-.",
-)
-ax1.errorbar(
-    sizes,
-    np.mean(size_BN_pol_data, axis=1),
-    yerr=np.std(size_BN_pol_data, axis=1),
-    label="BN polarization",
-    color=BN_color,
-    ls="-.",
-)
 ax1.xaxis.set_ticks(sizes)
 ax1.xaxis.set_ticklabels(["50", "100", "250", "500", "900"])
-ax1.legend()
+
+(gaas_pol,) = ax1.plot(
+    sizes[:-1],
+    np.mean(gaas_norm_pol_data, axis=1),
+    color=gaas_color,
+    ls="--",
+)
+
+(bn_pol,) = ax1.plot(
+    sizes,
+    np.mean(bn_norm_pol_data, axis=1),
+    color=BN_color,
+    ls="--",
+)
+(gaas_die,) = ax1.plot(
+    sizes[:-1],
+    np.mean(gaas_norm_die_data, axis=1),
+    color=gaas_color,
+    ls="-",
+)
+(bn_die,) = ax1.plot(
+    sizes,
+    np.mean(bn_norm_die_data, axis=1),
+    color=BN_color,
+    ls="-",
+)
+ax1.legend(
+    [gaas_pol, bn_pol, gaas_die, bn_die],
+    ["GaAs Polarization", "BN Polarization", "GaAs Dielectric", "BN Dielectric"],
+)
 
 fig.text(
     ax1.get_position().get_points()[0, 0] + 0.007,
     ax1.get_position().get_points()[1, 1] - 0.03,
     "a.",
-    color="k",
-    fontsize=25,
-)
-
-ax6 = fig.add_subplot(gs[3, 1])
-ax6.ticklabel_format(axis="y", scilimits=(0, 0))
-ax6.grid(linestyle="-.")
-ax6.set_ylabel(r"Test MAE $[\epsilon_0]$")
-ax6.set_xlabel("Dataset size")
-ax6.set_xscale("log")
-ax6.set_yscale("log")
-ax6.set_ylim([9.0e-5, 1e-2])
-ax6.set_xlim([38, 1000])
-ax6.errorbar(
-    sizes[:-1],
-    np.mean(size_GaAs_die_data, axis=1),
-    yerr=np.std(size_GaAs_die_data, axis=1),
-    label="GaAs dielectric",
-    color=gaas_color,
-    ls="-",
-)
-ax6.errorbar(
-    sizes,
-    np.mean(size_BN_die_data, axis=1),
-    yerr=np.std(size_BN_die_data, axis=1),
-    label="BN dielectric",
-    color=BN_color,
-    ls="-",
-)
-ax6.xaxis.set_ticks(sizes)
-ax6.xaxis.set_ticklabels(["50", "100", "250", "500", "900"])
-ax6.legend()
-
-fig.text(
-    ax6.get_position().get_points()[0, 0] + 0.007,
-    ax6.get_position().get_points()[1, 1] - 0.04,
-    "d.",
     color="k",
     fontsize=25,
 )
@@ -275,7 +256,7 @@ ax42.tick_params(axis="both", labelsize=10)
 fig.text(
     ax4.get_position().get_points()[0, 0] + 0.007,
     ax4.get_position().get_points()[1, 1] - 0.035,
-    "e.",
+    "d.",
     color="k",
     fontsize=22,
 )
@@ -315,7 +296,7 @@ ax52.tick_params(axis="both", labelsize=10)
 fig.text(
     ax5.get_position().get_points()[0, 0] + 0.007,
     ax5.get_position().get_points()[1, 1] - 0.035,
-    "f.",
+    "e.",
     color="k",
     fontsize=22,
 )
