@@ -7,9 +7,11 @@ from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
 
 data_dir = "data"
-detailed_data_path = os.path.join(data_dir, "temp_detailed_inference.pkl")
+detailed_data_path = os.path.join(data_dir, "detailed_inference.pkl")
 size_BN_pol_path = os.path.join(data_dir, "BN_pol_sizes.pkl")
 size_BN_die_path = os.path.join(data_dir, "BN_die_sizes.pkl")
+size_GaAs_pol_path = os.path.join(data_dir, "GaAs_pol_sizes.pkl")
+size_GaAs_die_path = os.path.join(data_dir, "GaAs_die_sizes.pkl")
 
 with open(detailed_data_path, "rb") as f:
     detailed_data = pickle.load(f)
@@ -18,6 +20,10 @@ with open(size_BN_pol_path, "rb") as f:
     size_BN_pol_data = pickle.load(f)["maes"]
 with open(size_BN_die_path, "rb") as f:
     size_BN_die_data = pickle.load(f)["maes"]
+with open(size_GaAs_pol_path, "rb") as f:
+    size_GaAs_pol_data = pickle.load(f)["maes"]
+with open(size_GaAs_die_path, "rb") as f:
+    size_GaAs_die_data = pickle.load(f)["maes"]
 
 font = {"family": "CMU Serif", "size": 18}
 plt.rc("font", **font)
@@ -77,33 +83,53 @@ gs = fig.add_gridspec(
     bottom=0.07,
 )
 
-sizes = [100, 250, 500, 900]
+sizes = [50, 100, 250, 500, 900]
 
 ax1 = fig.add_subplot(gs[1:4, 1])
+
+gaas_norm_pol_data = size_GaAs_pol_data / np.mean(size_GaAs_pol_data, axis=1)[0]
+bn_norm_pol_data = size_BN_pol_data / np.mean(size_BN_pol_data, axis=1)[0]
+gaas_norm_die_data = size_GaAs_die_data / np.mean(size_GaAs_die_data, axis=1)[0]
+bn_norm_die_data = size_BN_die_data / np.mean(size_BN_die_data, axis=1)[0]
+
 ax1.grid(linestyle="-.")
-ax1.set_ylabel("Test MAE")
+ax1.set_ylabel("Relative MAE")
 ax1.set_xlabel("Dataset size")
-ax1.set_yscale("log")
 ax1.set_xscale("log")
-ax1.errorbar(
+ax1.set_ylim([0, 1.05])
+ax1.set_xlim([38, 1000])
+ax1.xaxis.set_ticks(sizes)
+ax1.xaxis.set_ticklabels(["50", "100", "250", "500", "900"])
+
+(gaas_pol,) = ax1.plot(
+    sizes[:-1],
+    np.mean(gaas_norm_pol_data, axis=1),
+    color=gaas_color,
+    ls="--",
+)
+
+(bn_pol,) = ax1.plot(
     sizes,
-    np.mean(size_BN_die_data, axis=1),
-    yerr=np.std(size_BN_die_data, axis=1),
-    label="BN dielectric",
+    np.mean(bn_norm_pol_data, axis=1),
+    color=BN_color,
+    ls="--",
+)
+(gaas_die,) = ax1.plot(
+    sizes[:-1],
+    np.mean(gaas_norm_die_data, axis=1),
+    color=gaas_color,
+    ls="-",
+)
+(bn_die,) = ax1.plot(
+    sizes,
+    np.mean(bn_norm_die_data, axis=1),
     color=BN_color,
     ls="-",
 )
-ax1.errorbar(
-    sizes,
-    np.mean(size_BN_pol_data, axis=1),
-    yerr=np.std(size_BN_pol_data, axis=1),
-    label="BN polarization",
-    color=BN_color,
-    ls="-.",
+ax1.legend(
+    [gaas_pol, bn_pol, gaas_die, bn_die],
+    ["GaAs Polarization", "BN Polarization", "GaAs Dielectric", "BN Dielectric"],
 )
-ax1.xaxis.set_ticks(sizes)
-ax1.xaxis.set_ticklabels(["100", "250", "500", "900"])
-ax1.legend()
 
 fig.text(
     ax1.get_position().get_points()[0, 0] + 0.007,
@@ -128,8 +154,8 @@ im2.set_cmap(cm.haline_r)
 im2.set_clim(0, pol_max)
 
 cbar = plt.colorbar(im2, cax=cbax1, use_gridspec=True)
-cbar.set_ticks([0, 0.0001, 0.0002])
-cbar.set_ticklabels(["0.00\%", "0.01\%", "0.02\%"])
+cbar.set_ticks([0, 0.0001, 0.0002, 0.0003, 0.0004])
+cbar.set_ticklabels(["0.00\%", "0.01\%", "0.02\%", "0.03\%", "0.04\%"])
 cbar.set_label("Relative error")
 
 ax2.set_ylim([0, BN_pol_error_norms.max() * 3])
@@ -249,8 +275,8 @@ im5.set_clim(0, die_max)
 
 cbar = plt.colorbar(im5, cax=cbax2, use_gridspec=True, format="%.1e")
 cbar.set_label("Relative error")
-cbar.set_ticks([0, 0.001, 0.002, 0.003])
-cbar.set_ticklabels(["0.0\%", "0.1\%", "0.2\%", "0.3\%"])
+cbar.set_ticks([0, 0.0005, 0.001, 0.0015])
+cbar.set_ticklabels(["0.00\%", "0.05\%", "0.10\%", "0.15\%"])
 ax5.set_ylim([0, GaAs_die_error_norms.max() * 3])
 
 ax52 = inset_axes(ax5, width="55%", height="50%")
@@ -275,5 +301,5 @@ fig.text(
     fontsize=22,
 )
 
-plt.show()
-# plt.savefig("test.pdf")
+# plt.show()
+plt.savefig("figure_inference.eps")
