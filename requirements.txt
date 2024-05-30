@@ -1,0 +1,9 @@
+ase==3.22.1
+black==23.3.0
+h5py==3.8.0
+matplotlib==3.7.2
+numpy==1.23.5
+scipy==1.10.1
+torch==2.2
+torch_scatter==2.1.2+pt22cu121 -f https://data.pyg.org/whl/torch-2.2.0+cu121.html
+tqdm==4.65.0
