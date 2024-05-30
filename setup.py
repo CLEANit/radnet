@@ -5,7 +5,6 @@ requirements = [
     "numpy>=1.23",
     "torch>=2.2",
     "torch_scatter>=2.1.2",
-    "schnetpack==1.0.1",
     "ase>=3.22.0",
     "tqdm>=4.65",
 ]
