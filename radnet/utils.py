@@ -80,3 +80,47 @@ class DeterministicLinear(torch.nn.Linear):
     def forward(self, x):
         y = torch.matmul(x, self.weight.T.unsqueeze(0))[0] + self.bias
         return y
+
+
+def get_symmetries_array(n_symmetries):
+    if n_symmetries == 24:
+        symmetries_array = np.zeros((24, 3, 3))
+        symmetries_array[0] = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+        symmetries_array[1] = np.array([[0, 0, 1], [-1, -1, -1], [1, 0, 0]])
+        symmetries_array[2] = np.array([[-1, -1, -1], [0, 0, 1], [0, 1, 0]])
+        symmetries_array[3] = np.array([[0, 1, 0], [1, 0, 0], [-1, -1, -1]])
+        symmetries_array[4] = np.array([[-1, -1, -1], [0, 1, 0], [0, 0, 1]])
+        symmetries_array[5] = np.array([[0, 1, 0], [-1, -1, -1], [1, 0, 0]])
+        symmetries_array[6] = np.array([[1, 0, 0], [0, 0, 1], [0, 1, 0]])
+        symmetries_array[7] = np.array([[0, 0, 1], [1, 0, 0], [-1, -1, -1]])
+        symmetries_array[8] = np.array([[-1, -1, -1], [0, 1, 0], [1, 0, 0]])
+        symmetries_array[9] = np.array([[0, 1, 0], [-1, -1, -1], [0, 0, 1]])
+        symmetries_array[10] = np.array([[1, 0, 0], [0, 0, 1], [-1, -1, -1]])
+        symmetries_array[11] = np.array([[0, 0, 1], [1, 0, 0], [0, 1, 0]])
+        symmetries_array[12] = np.array([[1, 0, 0], [0, 1, 0], [-1, -1, -1]])
+        symmetries_array[13] = np.array([[0, 0, 1], [-1, -1, -1], [0, 1, 0]])
+        symmetries_array[14] = np.array([[-1, -1, -1], [0, 0, 1], [1, 0, 0]])
+        symmetries_array[15] = np.array([[0, 1, 0], [1, 0, 0], [0, 0, 1]])
+        symmetries_array[16] = np.array([[0, 0, 1], [0, 1, 0], [-1, -1, -1]])
+        symmetries_array[17] = np.array([[1, 0, 0], [-1, -1, -1], [0, 1, 0]])
+        symmetries_array[18] = np.array([[0, 1, 0], [0, 0, 1], [1, 0, 0]])
+        symmetries_array[19] = np.array([[-1, -1, -1], [1, 0, 0], [0, 0, 1]])
+        symmetries_array[20] = np.array([[0, 0, 1], [0, 1, 0], [1, 0, 0]])
+        symmetries_array[21] = np.array([[1, 0, 0], [-1, -1, -1], [0, 0, 1]])
+        symmetries_array[22] = np.array([[0, 1, 0], [0, 0, 1], [-1, -1, -1]])
+        symmetries_array[23] = np.array([[-1, -1, -1], [1, 0, 0], [0, 1, 0]])
+    elif n_symmetries == 6:
+        symmetries_array = np.zeros((6, 3, 3))
+        symmetries_array[0] = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+        symmetries_array[1] = np.array([[1, 0, 0], [0, 0, 1], [0, 1, 0]])
+        symmetries_array[2] = np.array([[0, 1, 0], [1, 0, 0], [0, 0, 1]])
+        symmetries_array[3] = np.array([[0, 1, 0], [0, 0, 1], [1, 0, 0]])
+        symmetries_array[4] = np.array([[0, 0, 1], [0, 1, 0], [1, 0, 0]])
+        symmetries_array[5] = np.array([[0, 0, 1], [1, 0, 0], [0, 1, 0]])
+    elif n_symmetries == 2:
+        symmetries_array = np.zeros((2, 3, 3))
+        symmetries_array[0] = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+        symmetries_array[1] = np.array([[0, 1, 0], [1, 0, 0], [0, 0, 1]])
+    else:
+        raise NotImplementedError()
+    return symmetries_array

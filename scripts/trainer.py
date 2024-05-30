@@ -1,14 +1,12 @@
-import torch
-from radnet.nn import RadNet
 from radnet.data import HDF5Dataset, collate_fn
-import sys
+from radnet.nn import RadNet
+from functools import partial
 import numpy as np
 import argparse
 import glob
-from functools import partial
-import h5py
 import os
 import pickle
+import torch
 
 
 # Setup parser
@@ -89,8 +87,21 @@ parser.add_argument("--weight_decay", type=float, default=0, help="Weight decay.
 parser.add_argument(
     "--augmentation_mode",
     default=None,
-    choices=[None, "reflections", "rotations"],
+    choices=[
+        None,
+        "reflections",
+        "rotations",
+        "symmetries",
+        "symmetries_6",
+        "symmetries_24",
+    ],
     help="Activates data augmentation",
+)
+parser.add_argument(
+    "--input_normalization",
+    action=argparse.BooleanOptionalAction,
+    default=True,
+    help="Normalize the english muffins before going in the model.",
 )
 parser.add_argument(
     "--biased_model",
@@ -130,46 +141,6 @@ if filename is None:
     exit()
 
 
-# Set some values
-batch_size = args.batch_size
-split_pct = args.split
-dataset = HDF5Dataset(
-    filename, sample_frac=args.sample_frac, augmentation_mode=args.augmentation_mode
-)
-n_training = int(len(dataset) * split_pct)
-n_validation = len(dataset) - n_training
-
-max_epochs = args.epochs
-starting_epoch = 0
-
-# Setup model and optimization
-model = RadNet(
-    cut_off=args.rcut / 2,
-    shape=tuple(args.image_shape),
-    sigma=args.sigma,
-    n_outputs=args.n_outputs,
-    atom_types=dataset.unique_atomic_numbers(),
-    cutoff_filter=args.filter,
-    biased_filters=args.biased_model,
-    bias_cell_lims=dataset.bias_cell_lims,
-    device=device,
-).to(device)
-
-loss_fn = torch.nn.MSELoss()
-
-optimizer = torch.optim.Adam(
-    model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay
-)
-scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-    optimizer,
-    "min",
-    factor=args.factor,
-    patience=args.patience,
-    min_lr=3e-6,
-    threshold=1e-8,
-)
-
-
 # Define loops
 def train_loop():
     model.train()
@@ -188,7 +159,6 @@ def train_loop():
         losses.append(loss.detach().cpu().numpy())
         loss.backward()
         optimizer.step()
-        # print(model.bias_min, model.bias_max)
         print(f"---- batch: {i} | loss: {loss.item()} ----")
     return np.mean(losses)
 
@@ -243,30 +213,42 @@ def checkpoint(epoch_num, best_loss, stopping_counter, name="ckpt.torch"):
     )
 
 
+# Set some values
+batch_size = args.batch_size
+split_pct = args.split
+
+max_epochs = args.epochs
+starting_epoch = 0
 best_loss = np.inf
 stopping_counter = 0
 
 # Restart or not
 checkpoint_files = glob.glob("ckpt*.torch")
 if checkpoint_files:
+    dataset = HDF5Dataset(
+        filename,
+        sample_frac=args.sample_frac,
+        normalize_mode="file",
+        augmentation_mode=args.augmentation_mode,
+    )
     print("Found checkpoint file, continuing training")
     checkpoint_data = torch.load(checkpoint_files[0], map_location=device)
-    model.load_state_dict(checkpoint_data["model_state_dict"])
     starting_epoch = checkpoint_data["epoch"]
-
-    if args.reset_loss:
-        best_loss, stopping_counter = np.inf, 0
-    else:
-        optimizer.load_state_dict(checkpoint_data["optimizer_state_dict"])
-        scheduler.load_state_dict(checkpoint_data["scheduler"])
-        best_loss = checkpoint_data["best_loss"]
-        stopping_counter = checkpoint_data["stopping_counter"]
 
     with open(args.idx_savepath, "rb") as f:
         idx_dict = pickle.load(f)
     training = torch.utils.data.Subset(dataset, idx_dict["train_idx"])
     validation = torch.utils.data.Subset(dataset, idx_dict["val_idx"])
 else:
+    dataset = HDF5Dataset(
+        filename,
+        sample_frac=args.sample_frac,
+        normalize_mode="data",
+        augmentation_mode=args.augmentation_mode,
+    )
+    n_training = int(len(dataset) * split_pct)
+    n_validation = len(dataset) - n_training
+
     shuffled_idx = torch.randperm(len(dataset)).tolist()
     training = torch.utils.data.Subset(dataset, shuffled_idx[:n_training])
     validation = torch.utils.data.Subset(dataset, shuffled_idx[-n_validation:])
@@ -280,6 +262,42 @@ else:
 
     print("checkpoint not found, training from scratch")
 
+# Setup model and optimization
+model = RadNet(
+    cut_off=args.rcut / 2,
+    shape=tuple(args.image_shape),
+    sigma=args.sigma,
+    n_outputs=args.n_outputs,
+    atom_types=dataset.unique_atomic_numbers(),
+    cutoff_filter=args.filter,
+    biased_filters=args.biased_model,
+    bias_cell_lims=dataset.bias_cell_lims,
+    device=device,
+).to(device)
+
+loss_fn = torch.nn.MSELoss()
+
+optimizer = torch.optim.Adam(
+    model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay
+)
+scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+    optimizer,
+    "min",
+    factor=args.factor,
+    patience=args.patience,
+    min_lr=3e-6,
+    threshold=1e-8,
+)
+
+if checkpoint_files:
+    model.load_state_dict(checkpoint_data["model_state_dict"])
+    optimizer.load_state_dict(checkpoint_data["optimizer_state_dict"])
+    scheduler.load_state_dict(checkpoint_data["scheduler"])
+    if args.reset_loss:
+        best_loss, stopping_counter = np.inf, 0
+    else:
+        best_loss = checkpoint_data["best_loss"]
+        stopping_counter = checkpoint_data["stopping_counter"]
 
 # Define loaders
 training_loader = torch.utils.data.DataLoader(

@@ -1,11 +1,12 @@
-import torch
-from radnet.nn import RadNet
 from radnet.data import HDF5Dataset, collate_fn
+from radnet.nn import RadNet
 from functools import partial
+from tqdm import tqdm
+import numpy as np
 import argparse
 import pickle
-import numpy as np
-from tqdm import tqdm
+import torch
+
 
 parser = argparse.ArgumentParser(
     description="Arguments for inference of RadNet",
@@ -27,12 +28,6 @@ parser.add_argument(
 )
 parser.add_argument(
     "--manual_index", type=int, default=None, help="Choose an index of the dataset."
-)
-parser.add_argument(
-    "--save_em",
-    action="store_true",
-    help="Use to save the english muffins potentials.",
-    default=False,
 )
 parser.add_argument(
     "--batch_size",
@@ -60,10 +55,22 @@ parser.add_argument(
     "--filter", type=str, default="erfc", help="filter used to blur images"
 )
 parser.add_argument(
+    "--input_normalization",
+    action=argparse.BooleanOptionalAction,
+    default=True,
+    help="Normalize the english muffins before going in the model.",
+)
+parser.add_argument(
     "--max_neighbors",
     type=int,
     default=500,
     help="max number of neighbors when constructing images",
+)
+parser.add_argument(
+    "--biased_model",
+    action="store_true",
+    default=False,
+    help="Used biased models to learn rotations.",
 )
 parser.add_argument(
     "--saved_model_path",
@@ -79,7 +86,17 @@ parser.add_argument(
     help="Device.",
 )
 parser.add_argument(
-    "--augmentation", action="store_true", help="Activates data augmentation"
+    "--augmentation_mode",
+    default=None,
+    choices=[
+        None,
+        "reflections",
+        "rotations",
+        "symmetries",
+        "symmetries_6",
+        "symmetries_24",
+    ],
+    help="Activates data augmentation",
 )
 parser.add_argument(
     "--detailed",
@@ -94,7 +111,10 @@ batch_size = args.batch_size
 
 
 dataset = HDF5Dataset(
-    args.datapath, normalize=True, normalize_mode="file", augmentation=args.augmentation
+    args.datapath,
+    normalize=True,
+    normalize_mode="file",
+    augmentation_mode=args.augmentation_mode,
 )
 
 # Choose the subset of data to evaluate if needed
@@ -129,6 +149,7 @@ model = RadNet(
     n_outputs=args.n_outputs,
     atom_types=dataset.unique_atomic_numbers(),
     cutoff_filter=args.filter,
+    biased_filters=args.biased_model,
     bias_cell_lims=dataset.bias_cell_lims,
     device=device,
 ).to(device)

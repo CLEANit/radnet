@@ -45,6 +45,7 @@ def build_parser():
         default=None,
         help="Use to also compute DFT Raman intensities.",
     )
+    parser.add_argument("--gamma", type=float, default=10.0, help="Peak broadening factor.")
     return parser
 
 
@@ -144,7 +145,7 @@ def get_raman_intensities(
 
     nmodes = eigenenergies.shape[0]
     omega_I = 18796.9987  # in cm^-1 for 532 nm laser
-    Gamma = 10  # broadening in cm^-1
+    Gamma = float(args.gamma)  # broadening in cm^-1
     c = 137.0359997566  # in A.U.
     omega_min, omega_max = 100, 1500
     omegas = np.linspace(omega_min, omega_max, 2000)

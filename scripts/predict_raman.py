@@ -46,6 +46,12 @@ def build_parser():
         "--filter", type=str, default="erfc", help="filter used to blur images"
     )
     parser.add_argument(
+        "--input_normalization",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Normalize the english muffins before going in the model.",
+    )
+    parser.add_argument(
         "--max_neighbors",
         type=int,
         default=500,

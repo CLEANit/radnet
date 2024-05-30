@@ -2,6 +2,7 @@ import torch
 from collections import OrderedDict
 from torch_scatter import scatter
 from radnet.utils import pbc_round, DeterministicLinear
+import numpy as np
 
 
 class RadNet(torch.nn.Module):
@@ -12,6 +13,7 @@ class RadNet(torch.nn.Module):
         sigma=0.2,
         n_outputs=6,
         atom_types=None,
+        input_normalization=True,
         cutoff_filter="erfc",
         biased_filters=False,
         bias_cell_lims=None,
@@ -23,6 +25,9 @@ class RadNet(torch.nn.Module):
         self.sigma = sigma
         self.n_outputs = n_outputs
         self.atom_types = atom_types
+        self.input_normalization = bool(input_normalization)
+
+        # Set up real space grid
         self.x = torch.linspace(-cut_off, cut_off, shape[0])
         self.y = torch.linspace(-cut_off, cut_off, shape[1])
         self.z = torch.linspace(-cut_off, cut_off, shape[2])
@@ -31,7 +36,8 @@ class RadNet(torch.nn.Module):
         self.Y = Y.to(device)
         self.Z = Z.to(device)
 
-        self.biased_filters = biased_filters
+        # Biased filters to learn rotations of the cell
+        self.biased_filters = bool(biased_filters)
         if self.biased_filters:
             self.bias_cell_lims = bias_cell_lims
             self.bias_min = 1.0
@@ -75,48 +81,79 @@ class RadNet(torch.nn.Module):
             self.filter = filters
 
     def _setup_network(self):
-        layers = OrderedDict()
-        in_chan = 1
-        for n in range(2):
-            layers["conv_red_" + str(n)] = torch.nn.Conv3d(
-                in_chan, 64, 3, stride=1, padding=1
-            )
-            layers["conv_red_" + str(n) + "_elu"] = torch.nn.ELU()
-            in_chan = 64
+        def create_layers(biased_filters):
+            layersDict = OrderedDict()
+            in_chan = 1
+            for n in range(2):
+                layersDict["conv_red_" + str(n)] = torch.nn.Conv3d(
+                    in_chan, 64, 3, stride=1, padding=1
+                )
+                layersDict["conv_red_" + str(n) + "_elu"] = torch.nn.ELU()
+                in_chan = 64
 
-        for n in range(2, 6):
-            layers["conv_red_" + str(n)] = torch.nn.Conv3d(
-                in_chan, 16, 3, stride=1, padding=1
-            )
-            layers["conv_red_" + str(n) + "_elu"] = torch.nn.ELU()
-            in_chan = 16
+            for n in range(2, 6):
+                layersDict["conv_red_" + str(n)] = torch.nn.Conv3d(
+                    in_chan, 16, 3, stride=1, padding=1
+                )
+                layersDict["conv_red_" + str(n) + "_elu"] = torch.nn.ELU()
+                in_chan = 16
 
-        for n in range(6, 7):
-            layers["conv_red_" + str(n)] = torch.nn.Conv3d(
-                in_chan, 64, 3, stride=2, padding=1
-            )
-            layers["conv_red_" + str(n) + "_elu"] = torch.nn.ELU()
-            in_chan = 64
+            for n in range(6, 7):
+                layersDict["conv_red_" + str(n)] = torch.nn.Conv3d(
+                    in_chan, 64, 3, stride=2, padding=1
+                )
+                layersDict["conv_red_" + str(n) + "_elu"] = torch.nn.ELU()
+                in_chan = 64
 
-        for n in range(7, 11):
-            layers["conv_red_" + str(n)] = torch.nn.Conv3d(
-                in_chan, 32, 3, stride=1, padding=1
+            for n in range(7, 11):
+                layersDict["conv_red_" + str(n)] = torch.nn.Conv3d(
+                    in_chan, 32, 3, stride=1, padding=1
+                )
+                layersDict["conv_red_" + str(n) + "_elu"] = torch.nn.ELU()
+                in_chan = 32
+            layersDict["flatten"] = torch.nn.Flatten()
+            layersDict["fc1"] = DeterministicLinear(
+                in_chan
+                * (
+                    self.shape[0] // 2 + 1
+                    if self.shape[0] % 2 == 1
+                    else self.shape[0] // 2
+                )
+                * (
+                    self.shape[1] // 2 + 1
+                    if self.shape[1] % 2 == 1
+                    else self.shape[1] // 2
+                )
+                * (
+                    self.shape[2] // 2 + 1
+                    if self.shape[2] % 2 == 1
+                    else self.shape[2] // 2
+                ),
+                1024,
             )
-            layers["conv_red_" + str(n) + "_elu"] = torch.nn.ELU()
-            in_chan = 32
-        layers["flatten"] = torch.nn.Flatten()
-        layers["fc1"] = DeterministicLinear(
-            in_chan
-            * (self.shape[0] // 2 + 1 if self.shape[0] % 2 == 1 else self.shape[0] // 2)
-            * (self.shape[1] // 2 + 1 if self.shape[1] % 2 == 1 else self.shape[1] // 2)
-            * (
-                self.shape[2] // 2 + 1 if self.shape[2] % 2 == 1 else self.shape[2] // 2
-            ),
-            1024,
-        )
-        layers["fc1_ELU"] = torch.nn.ELU()
-        layers["fc2"] = DeterministicLinear(1024, self.n_outputs)
-        self.model = torch.nn.Sequential(layers)
+            layersDict["fc1_ELU"] = torch.nn.ELU()
+            if biased_filters:
+                layersDict["fc2"] = DeterministicLinear(1024, 1)
+            else:
+                layersDict["fc2"] = DeterministicLinear(1024, self.n_outputs)
+
+            return layersDict
+
+        if not self.biased_filters:
+            layersDict = create_layers(biased_filters=False)
+            self.model = torch.nn.Sequential(layersDict)
+        else:
+            if self.n_outputs == 3:
+                layersDicts = [
+                    create_layers(biased_filters=True),
+                    create_layers(biased_filters=True),
+                    create_layers(biased_filters=True),
+                ]
+                self.models = torch.nn.ModuleList(
+                    [torch.nn.Sequential(lay) for lay in layersDicts]
+                )
+            else:
+                raise NotImplementedError()
 
     def _get_distances(self, pos, neighbors, cell):
         # convert to scaled positions and handle PBCs
@@ -196,15 +233,13 @@ class RadNet(torch.nn.Module):
                 for dim in range(3):
                     bias_filters[dim][i] = grid_biases[dim]
 
-            combined_filters = torch.mean(torch.stack(bias_filters), dim=0)
-
-            return self.cutoff_filter * combined_filters * ems
+            return [self.cutoff_filter * bias * ems for bias in bias_filters]
         else:
             return self.filter * ems
 
     def forward(self, pos, Z, neighbors, use_neighbors, index):
         ems = self._make_english_muffin(pos, Z, neighbors, use_neighbors)
-        if self.atom_types:
+        if self.atom_types and self.input_normalization:
             ems -= self.input_mean
             ems /= self.input_std
             ems /= self.input_abs_max
@@ -215,6 +250,16 @@ class RadNet(torch.nn.Module):
         else:
             filtered_ems = self._apply_filters(ems)
 
-        inter_outs = self.model(filtered_ems.unsqueeze(1))
-        outs = scatter(inter_outs, index, dim=0, reduce="add")
+        if self.biased_filters:
+            outs = torch.empty(
+                (torch.max(index) + 1, self.n_outputs), device=ems.device
+            )
+            for dim, (filtered_ems_dim, model_dim) in enumerate(
+                zip(filtered_ems, self.models)
+            ):
+                inter_outs = model_dim(filtered_ems_dim.unsqueeze(1))
+                outs[:, dim] = scatter(inter_outs, index, dim=0, reduce="add").squeeze()
+        else:
+            inter_outs = self.model(filtered_ems.unsqueeze(1))
+            outs = scatter(inter_outs, index, dim=0, reduce="add")
         return outs

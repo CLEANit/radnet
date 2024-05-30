@@ -4,12 +4,14 @@ import numpy as np
 from ase import Atoms, neighborlist
 from ase.cell import Cell
 import ase.neighborlist
+from ase.units import Bohr
 from radnet.utils import (
     _make_float32,
     target_to_tensor,
     tensor_to_target,
     generate_random_3D_rotation_matrix,
 )
+from copy import deepcopy
 
 
 def flatten(samples, cut_off, max_neighbors):
@@ -85,8 +87,28 @@ class HDF5Dataset(torch.utils.data.Dataset):
         self.sample_frac = sample_frac
         self._load_data()
 
-        assert augmentation_mode in [None, "reflections", "rotations"]
-        self.augmentation_mode = augmentation_mode
+        assert augmentation_mode in [
+            None,
+            "reflections",
+            "rotations",
+            "symmetries",
+            "symmetries_6",
+            "symmetries_24",
+        ]
+        if augmentation_mode in ["symmetries_6", "symmetries_24"]:
+            self.n_symmetries = int(augmentation_mode.split("_")[-1])
+            self.augmentation_mode = "symmetries"
+        else:
+            self.n_symmetries = (
+                24 if self.n_outputs == 3 else 6
+            )  # Only used for symmetries augmentation
+            self.augmentation_mode = augmentation_mode
+
+        if self.augmentation_mode == "symmetries":
+            # Needs to be generalized to other materials
+            from radnet.utils import get_symmetries_array
+
+            self.symmetries_array = get_symmetries_array(self.n_symmetries)
 
         self.normalize = normalize
         if self.normalize:
@@ -110,6 +132,13 @@ class HDF5Dataset(torch.utils.data.Dataset):
                     "coordinates": pos,
                     "target": struct_vals["target"][i],
                 }
+                try:
+                    data_point["polarization_phases"] = struct_vals[
+                        "polarization_phases"
+                    ][i]
+                except:
+                    pass
+
                 self.data.append(data_point)
                 self.ams += struct_vals["atomic_numbers"][:].tolist()
                 if i >= max_samples:
@@ -124,9 +153,11 @@ class HDF5Dataset(torch.utils.data.Dataset):
                 datapoint["target_tensor"] = target_to_tensor(datapoint["target"])
 
         # To implement differently for varying cell sizes
-        example_cell = self.data[0]["cell"]
+        self.cell = Cell(self.data[0]["cell"])
+        self.au_cell = self.cell / Bohr
+        self.au_volume = self.cell.volume / (Bohr**3)
 
-        max_cell_dim = np.max(np.sum(np.abs(example_cell), axis=0))
+        max_cell_dim = np.max(np.sum(np.abs(self.cell), axis=0))
         self.bias_cell_lims = (-max_cell_dim, max_cell_dim)
 
     def _initial_normalization(self, normalize_mode):
@@ -143,20 +174,29 @@ class HDF5Dataset(torch.utils.data.Dataset):
                 if min_val == max_val:
                     mins[i], maxs[i] = mins[i] - 0.01, maxs[i] + 0.01
 
-            if self.augmentation_mode:
-                if self.n_outputs == 3:
-                    maxval = max(np.absolute(maxs).max(), np.absolute(mins).max())
-                    maxs = np.array([maxval, maxval, maxval])
-                    mins = np.array([-maxval, -maxval, -maxval])
-                elif self.n_outputs == 6:
-                    values = []
-                    for elem in self.data:
-                        elem = self._augment_data(elem)
-                        values.append(elem["target"])
-                    values = np.array(values)
-                    mins = values.min(0)
-                    maxs = values.max(0)
-                    pass
+            if (
+                self.augmentation_mode in ["reflections", "rotations"]
+                and self.n_outputs == 3
+            ):
+                maxval = max(np.absolute(maxs).max(), np.absolute(mins).max())
+                maxs = np.array([maxval, maxval, maxval])
+                mins = np.array([-maxval, -maxval, -maxval])
+            elif self.augmentation_mode == "symmetries" or self.n_outputs == 6:
+                values = []
+                for elem in self.data:
+                    elem = deepcopy(elem)
+                    elem = self._augment_data(elem)
+                    values.append(elem["target"])
+                values = np.array(values)
+                mins = values.min(0)
+                maxs = values.max(0)
+            else:
+                pass
+
+            # Check for 0 norm
+            idx = np.where(mins == maxs)[0]
+            maxs[idx] += maxs[idx] / 2
+            mins[idx] -= mins[idx] / 2
 
             print("INFO from normalization:")
             print("mins:", mins)
@@ -199,7 +239,7 @@ class HDF5Dataset(torch.utils.data.Dataset):
         return len(self.data)
 
     def __getitem__(self, idx):
-        datapoint = self.data[idx].copy()
+        datapoint = deepcopy(self.data[idx])
         if self.augmentation_mode:
             datapoint = self._augment_data(datapoint)
         if self.normalize:
@@ -217,17 +257,50 @@ class HDF5Dataset(torch.utils.data.Dataset):
         return M
 
     def _augment_data(self, datapoint):
-        cell = Cell(datapoint["cell"])
-        scaled_positions = cell.scaled_positions(datapoint["coordinates"])
-        rotation_matrix = self.get_3D_rotation_matrix()
-        rotated_cell = cell.array @ rotation_matrix.T
-        datapoint["cell"] = rotated_cell
-        datapoint["coordinates"] = scaled_positions @ rotated_cell
+        scaled_positions = self.cell.scaled_positions(datapoint["coordinates"])
 
-        if self.n_outputs == 3:
-            datapoint["target"] = rotation_matrix @ datapoint["target"]
-        elif self.n_outputs == 6:
-            datapoint["target"] = tensor_to_target(
-                rotation_matrix @ datapoint["target_tensor"] @ rotation_matrix.T
-            )
+        if self.augmentation_mode in ["reflections", "rotations"]:
+            rotation_matrix = self._get_random_3D_rotation_matrix()
+            rotated_cell = self.cell.array @ rotation_matrix.T
+            datapoint["cell"] = rotated_cell
+            datapoint["coordinates"] = scaled_positions @ rotated_cell
+
+            if self.n_outputs == 3:
+                datapoint["target"] = rotation_matrix @ datapoint["target"]
+            elif self.n_outputs == 6:
+                datapoint["target"] = tensor_to_target(
+                    rotation_matrix @ datapoint["target_tensor"] @ rotation_matrix.T
+                )
+
+        elif self.augmentation_mode == "symmetries":
+            # df = np.random.randint(self.symmetries_array.shape[0])
+            symmetry_matrix = self.symmetries_array[
+                np.random.randint(self.symmetries_array.shape[0])
+            ]
+            # print(symmetry_matrix)
+            # print("before: ", datapoint["coordinates"][14])
+
+            new_scaled_positions = 0
+            for dim in range(3):
+                new_scaled_positions += (
+                    np.tile(
+                        symmetry_matrix[:, dim].reshape(3, -1),
+                        scaled_positions.shape[0],
+                    )
+                    * scaled_positions[:, dim]
+                ).T
+            datapoint["coordinates"] = new_scaled_positions @ self.cell.array
+            # print("after: ", datapoint["coordinates"][14])
+
+            if self.n_outputs == 3:
+                phases = datapoint["polarization_phases"]
+                phases = (symmetry_matrix * phases).sum(1) % 2
+                phases = np.broadcast_to(phases, (3, 3)).T
+                datapoint["target"] = (phases * self.au_cell).sum(0) / self.au_volume
+                # print(datapoint["target"])
+            elif self.n_outputs == 6:
+                datapoint["target"] = tensor_to_target(
+                    symmetry_matrix @ datapoint["target_tensor"] @ symmetry_matrix.T
+                )
+            # print(datapoint["target"])
         return datapoint
