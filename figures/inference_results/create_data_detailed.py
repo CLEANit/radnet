@@ -59,7 +59,7 @@ def main(args):
             n_outputs = 3 if prop == "polarization" else 6
 
             dataset_path = os.path.join(args.datadir, f"{material}_test_100_{prop}.h5")
-            base_command = f"python {script_dir}/../../inference.py {dataset_path} "
+            base_command = f"python {script_dir}/../../scripts/inference.py {dataset_path} "
             base_options = (
                 f" --n_outputs {n_outputs} --sigma {args.sigma} --device {args.device} --rcut {rcut} "
                 f"--image_shape {image_shape[0]} {image_shape[1]} {image_shape[2]} --detailed "

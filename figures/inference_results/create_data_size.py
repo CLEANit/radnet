@@ -74,10 +74,10 @@ def main(args):
 
     n_models = 5
     sizes = (
-        ["100", "250", "500", "900"] if args.material == "BN" else ["100", "250", "500"]
+        ["50", "100", "250", "500", "900"] if args.material == "BN" else ["50", "100", "250", "500"]
     )
     script_dir = os.path.dirname(__file__)
-    base_command = f"python {script_dir}/../../inference.py "
+    base_command = f"python {script_dir}/../../scripts/inference.py "
     base_options = (
         f" --n_outputs {args.n_outputs} --sigma {args.sigma} --device {args.device} --rcut {args.rcut} "
         f"--image_shape {args.image_shape[0]} {args.image_shape[1]} {args.image_shape[2]} "
