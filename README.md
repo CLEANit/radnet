@@ -6,7 +6,9 @@ This is the repository for the RADNET architecture for polarization and electron
 ## Folders structure
 
 **figures/**: Contains codes and scripts to generate the data and figures of the paper
+
 **radnet/**: Contains the code package to install to use the RADNET architecture
+
 **scripts/**: Contains the various prewritten scripts used in the paper and based on the package. See the **Usage** section for more details on scripts. Every script can be called with `--help` to get an explanation of all input parameters.
 
 
