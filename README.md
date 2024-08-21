@@ -2,6 +2,8 @@
 
 This is the repository for the RADNET architecture for polarization and electronic dielectric function predictions in periodic solids, and Raman intensities calculations.
 
+Results obtained with this repo have been published as Olivier Malenfant-Thuot *et al* 2024 *J. Phys.: Condens. Matter*  **36** 425901.
+
 
 ## Folders structure
 
